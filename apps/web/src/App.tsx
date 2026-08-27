@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { CameraPanel } from './components/CameraPanel';
 import { CustomerCard } from './components/CustomerCard';
 import { TopBar } from './components/TopBar';
@@ -13,6 +13,14 @@ export default function App() {
   const { videoRef, ready, error: camError } = useCamera(live);
   const { status, last, error: recError } = useRecognition(videoRef, live, 2);
   const primaryResult = last?.results[0];
+
+  // Stable identity across frames so AnimatePresence doesn't re-mount on every
+  // recognition tick (which was making the right panel flicker).
+  const identityKey = useMemo(() => {
+    if (!primaryResult) return null;
+    if (primaryResult.isMember && primaryResult.member) return `m:${primaryResult.member.memberId}`;
+    return `guest:${primaryResult.ageBucket}:${primaryResult.gender}`;
+  }, [primaryResult]);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -31,8 +39,8 @@ export default function App() {
         </section>
         <aside className="flex flex-col gap-4">
           <AnimatePresence mode="wait">
-            {primaryResult ? (
-              <CustomerCard key={primaryResult.faceId} result={primaryResult} />
+            {primaryResult && identityKey ? (
+              <CustomerCard key={identityKey} result={primaryResult} />
             ) : (
               <EmptyState key="empty" live={live} status={status} />
             )}
