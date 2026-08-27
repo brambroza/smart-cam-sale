@@ -16,10 +16,12 @@ export function CustomerCard({
   result,
   held,
   compact = false,
+  onEnroll,
 }: {
   result: RecognitionResult;
   held?: HeldSlice;
   compact?: boolean;
+  onEnroll?: () => void;
 }) {
   // Merge live-smoothed fields (age/matchConfidence/bbox) with held display data
   const displayMember = held?.member ?? result.member;
@@ -171,6 +173,7 @@ export function CustomerCard({
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
+              onClick={onEnroll}
               className="mt-5 w-full btn-primary justify-center py-3 text-base"
             >
               <UserPlus className="w-5 h-5" /> ชวนสมัครสมาชิกฟรี · รับส่วนลด 10%

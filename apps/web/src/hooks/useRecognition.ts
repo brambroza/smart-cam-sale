@@ -13,6 +13,7 @@ export function useRecognition(
 ) {
   const socketRef = useRef<Socket | null>(null);
   const busyRef = useRef(false);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [last, setLast] = useState<RecognitionMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -22,6 +23,7 @@ export function useRecognition(
     setStatus('connecting');
     const s = io(WS_URL, { path: '/ws', transports: ['websocket'] });
     socketRef.current = s;
+    setSocket(s);
     s.on('connect', () => setStatus('connected'));
     s.on('disconnect', () => setStatus('idle'));
     s.on('connect_error', (e) => {
@@ -39,6 +41,7 @@ export function useRecognition(
     return () => {
       s.disconnect();
       socketRef.current = null;
+      setSocket(null);
     };
   }, [enabled]);
 
@@ -65,5 +68,5 @@ export function useRecognition(
     return () => clearInterval(interval);
   }, [enabled, fps, videoRef]);
 
-  return { status, last, error };
+  return { status, last, error, socket };
 }

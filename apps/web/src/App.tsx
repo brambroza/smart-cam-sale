@@ -6,14 +6,21 @@ import { StatsStrip } from './components/StatsStrip';
 import { useCamera } from './hooks/useCamera';
 import { useRecognition } from './hooks/useRecognition';
 import { useStableFaces } from './hooks/useStableFaces';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { EmptyState } from './components/EmptyState';
+import { EnrollModal } from './components/EnrollModal';
+import { ProductBrowser } from './components/ProductBrowser';
+import { PackageOpen, UserPlus } from 'lucide-react';
 
 export default function App() {
   const [live, setLive] = useState(true);
+  const [enrollOpen, setEnrollOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const { videoRef, ready, error: camError } = useCamera(live);
-  const { status, last, error: recError } = useRecognition(videoRef, live, 1);
+  const { status, last, error: recError, socket } = useRecognition(videoRef, live, 1);
   const faces = useStableFaces(last);
+  const primary = faces[0];
+  const guestPrimary = primary && !primary.result.isMember ? primary : undefined;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -41,12 +48,47 @@ export default function App() {
                   result={f.result}
                   held={f.held}
                   compact={idx > 0}
+                  onEnroll={idx === 0 && !f.result.isMember ? () => setEnrollOpen(true) : undefined}
                 />
               ))
             )}
           </AnimatePresence>
         </aside>
       </main>
+
+      {/* Floating Product Browser button */}
+      <motion.button
+        onClick={() => setBrowserOpen(true)}
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        className="fixed bottom-6 right-6 z-30 flex items-center gap-2 pl-4 pr-5 py-3 rounded-full glass-strong border border-white/15 shadow-glow font-semibold"
+      >
+        <PackageOpen className="w-5 h-5 text-neon-cyan" />
+        <span>สินค้าทั้งหมด</span>
+      </motion.button>
+
+      {/* Floating Enroll button (always available) */}
+      {guestPrimary && (
+        <motion.button
+          onClick={() => setEnrollOpen(true)}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          className="fixed bottom-6 left-6 z-30 flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-gradient-to-br from-violet-500 to-cyan-400 text-ink-950 font-bold shadow-glow"
+        >
+          <UserPlus className="w-5 h-5" />
+          <span>สมัครสมาชิก</span>
+        </motion.button>
+      )}
+
+      <EnrollModal
+        open={enrollOpen}
+        onClose={() => setEnrollOpen(false)}
+        socket={socket}
+        guessGender={guestPrimary?.result.gender as any}
+        guessAge={guestPrimary?.result.estimatedAge}
+      />
+      <ProductBrowser open={browserOpen} onClose={() => setBrowserOpen(false)} />
     </div>
   );
 }

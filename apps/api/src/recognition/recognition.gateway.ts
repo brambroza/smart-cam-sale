@@ -32,13 +32,23 @@ export class RecognitionGateway {
     if (this.busy.get(client.id)) return; // drop if previous still running
     this.busy.set(client.id, true);
     try {
-      const result = await this.svc.recognizeFrame(body.imageBase64, body.frameId);
-      client.emit('recognition', result);
+      const { message, primaryEmbedding } = await this.svc.recognizeFrameWithEmbedding(
+        body.imageBase64,
+        body.frameId,
+      );
+      if (primaryEmbedding) this.svc.rememberEmbedding(client.id, primaryEmbedding);
+      client.emit('recognition', message);
     } catch (e) {
       this.logger.error((e as Error).message);
       client.emit('recognition_error', { message: (e as Error).message });
     } finally {
       this.busy.set(client.id, false);
     }
+  }
+
+  @SubscribeMessage('capture_embedding')
+  onCaptureEmbedding(@ConnectedSocket() client: Socket) {
+    const embedding = this.svc.getLastEmbedding(client.id);
+    client.emit('captured_embedding', { embedding: embedding ?? null });
   }
 }

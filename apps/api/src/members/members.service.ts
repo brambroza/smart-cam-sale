@@ -51,6 +51,41 @@ export class MembersService {
     return { ok: true };
   }
 
+  async enroll(input: {
+    fullName: string;
+    displayName: string;
+    gender?: 'male' | 'female' | 'unknown';
+    birthYear?: number;
+    phone?: string;
+    email?: string;
+    embedding: number[];
+  }) {
+    if (!input.embedding || input.embedding.length !== 512) {
+      throw new NotFoundException('embedding must be 512-d');
+    }
+    const member = await this.prisma.member.create({
+      data: {
+        fullName: input.fullName,
+        displayName: input.displayName,
+        gender: (input.gender ?? 'unknown') as any,
+        birthYear: input.birthYear,
+        phone: input.phone,
+        email: input.email,
+        tier: 'bronze',
+        points: 100, // ของขวัญสมัครใหม่
+        faceOptIn: true,
+      },
+    });
+    const vec = `[${input.embedding.join(',')}]`;
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO "FaceEmbedding" ("id", "memberId", "embedding") VALUES ($1, $2, $3::vector)`,
+      `face_${Math.random().toString(36).slice(2, 10)}`,
+      member.id,
+      vec,
+    );
+    return { ok: true, memberId: member.id, welcomePoints: 100 };
+  }
+
   async removeFace(memberId: string) {
     await this.prisma.faceEmbedding.deleteMany({ where: { memberId } });
     await this.prisma.member.update({ where: { id: memberId }, data: { faceOptIn: false } });

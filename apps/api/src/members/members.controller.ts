@@ -1,6 +1,16 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { MembersService } from './members.service';
 
+interface EnrollBody {
+  fullName: string;
+  displayName: string;
+  gender?: 'male' | 'female' | 'unknown';
+  birthYear?: number;
+  phone?: string;
+  email?: string;
+  embedding: number[];
+}
+
 @Controller('members')
 export class MembersController {
   constructor(private readonly svc: MembersService) {}
@@ -18,6 +28,11 @@ export class MembersController {
   @Get(':id')
   detail(@Param('id') id: string) {
     return this.svc.detail(id);
+  }
+
+  @Post('enroll')
+  enroll(@Body() body: EnrollBody) {
+    return this.svc.enroll(body);
   }
 
   @Post(':id/face')

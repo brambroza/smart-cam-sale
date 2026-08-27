@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { AiClient, AiFace } from './ai.client';
 import { RecommendationService } from './recommendation.service';
+import { ClaudeScriptService } from '../ai/claude-script.service';
 import type {
   RecognitionMessage,
   RecognitionResult,
@@ -34,23 +35,50 @@ export class RecognitionService {
     private readonly prisma: PrismaService,
     private readonly ai: AiClient,
     private readonly recos: RecommendationService,
+    private readonly claude: ClaudeScriptService,
   ) {}
 
+  private readonly lastEmbeddingByClient = new Map<string, number[]>();
+  /** Cache latest embedding per client socket so enrollment can save it later. */
+  public rememberEmbedding(clientId: string, embedding: number[]) {
+    this.lastEmbeddingByClient.set(clientId, embedding);
+  }
+  public getLastEmbedding(clientId: string): number[] | undefined {
+    return this.lastEmbeddingByClient.get(clientId);
+  }
+
   async recognizeFrame(imageBase64: string, frameId: string): Promise<RecognitionMessage> {
+    const { message } = await this.recognizeFrameWithEmbedding(imageBase64, frameId);
+    return message;
+  }
+
+  async recognizeFrameWithEmbedding(
+    imageBase64: string,
+    frameId: string,
+  ): Promise<{ message: RecognitionMessage; primaryEmbedding?: number[] }> {
     const started = Date.now();
     const faces = await this.ai.analyze(imageBase64);
     const results: RecognitionResult[] = [];
+    let primaryEmbedding: number[] | undefined;
+    let bestScore = 0;
 
     for (const face of faces) {
       if (face.det_score < 0.55) continue;
+      if (face.det_score > bestScore) {
+        bestScore = face.det_score;
+        primaryEmbedding = face.embedding;
+      }
       results.push(await this.processFace(face));
     }
 
     return {
-      frameId,
-      results,
-      processedAt: new Date().toISOString(),
-      processingMs: Date.now() - started,
+      message: {
+        frameId,
+        results,
+        processedAt: new Date().toISOString(),
+        processingMs: Date.now() - started,
+      },
+      primaryEmbedding,
     };
   }
 
@@ -79,6 +107,21 @@ export class RecognitionService {
         },
       });
 
+      const templateScript = this.craftScript(
+        memberProfile,
+        purchases[0]?.productName,
+        recommendations[0]?.name,
+      );
+      const claudeScript = await this.claude.generate({
+        isMember: true,
+        member: memberProfile,
+        age,
+        gender,
+        timeOfDay: tod,
+        recentPurchases: purchases,
+        recommendations,
+      });
+
       return {
         faceId,
         bbox: face.bbox,
@@ -90,7 +133,7 @@ export class RecognitionService {
         member: memberProfile,
         recentPurchases: purchases,
         recommendations,
-        suggestedScript: this.craftScript(memberProfile, purchases[0]?.productName, recommendations[0]?.name),
+        suggestedScript: claudeScript ?? templateScript,
         capturedAt,
       };
     }
@@ -98,6 +141,16 @@ export class RecognitionService {
     const recommendations = await this.recos.forGuest(age, gender, tod);
     await this.prisma.visitLog.create({
       data: { matchedFace: false, estimatedAge: age, gender: gender as any, ageBucket: bucket },
+    });
+
+    const guestTemplate = this.guestScript(age, gender, recommendations[0]?.name);
+    const claudeScript = await this.claude.generate({
+      isMember: false,
+      age,
+      gender,
+      timeOfDay: tod,
+      recentPurchases: [],
+      recommendations,
     });
 
     return {
@@ -109,7 +162,7 @@ export class RecognitionService {
       isMember: false,
       recentPurchases: [],
       recommendations,
-      suggestedScript: this.guestScript(age, gender, recommendations[0]?.name),
+      suggestedScript: claudeScript ?? guestTemplate,
       capturedAt,
     };
   }
