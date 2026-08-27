@@ -34,17 +34,26 @@ az extension add --name containerapp --upgrade -y || true
 az provider register --namespace Microsoft.App --wait
 az provider register --namespace Microsoft.OperationalInsights --wait
 
-echo "▶ สร้าง Container Apps environment (consumption plan — free grant apply อัตโนมัติ)"
-az containerapp env create \
-  -n "$ACA_ENV" -g "$RG" -l "$LOCATION" \
-  --logs-destination none \
-  -o none
+: "${EXISTING_ENV_RG:=$RG}"
+
+echo "▶ ตรวจ Container Apps environment ($ACA_ENV in $EXISTING_ENV_RG)"
+ENV_ID=$(az containerapp env show -n "$ACA_ENV" -g "$EXISTING_ENV_RG" --query id -o tsv 2>/dev/null || true)
+if [[ -z "$ENV_ID" ]]; then
+  echo "  → ไม่พบ, สร้างใหม่ที่ $RG / $LOCATION"
+  az containerapp env create \
+    -n "$ACA_ENV" -g "$RG" -l "$LOCATION" \
+    --logs-destination none \
+    -o none
+  ENV_ID=$(az containerapp env show -n "$ACA_ENV" -g "$RG" --query id -o tsv)
+else
+  echo "  → ใช้ env เดิม: $ENV_ID"
+fi
 
 # ---------- AI service (internal ingress) ----------
 echo "▶ สร้าง AI service container app (internal, scale-to-zero)"
 az containerapp create \
   -n "$AI_APP" -g "$RG" \
-  --environment "$ACA_ENV" \
+  --environment "$ENV_ID" \
   --image "ghcr.io/$GH_OWNER/smart-cam-ai:latest" \
   --ingress internal --target-port 8000 --transport auto \
   --min-replicas 0 --max-replicas 1 \
@@ -59,7 +68,7 @@ echo "  → AI internal FQDN: $AI_FQDN"
 echo "▶ สร้าง API container app (external, WebSocket enabled)"
 az containerapp create \
   -n "$API_APP" -g "$RG" \
-  --environment "$ACA_ENV" \
+  --environment "$ENV_ID" \
   --image "ghcr.io/$GH_OWNER/smart-cam-api:latest" \
   --ingress external --target-port 3000 --transport auto \
   --min-replicas 0 --max-replicas 1 \
