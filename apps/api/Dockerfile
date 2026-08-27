@@ -10,7 +10,10 @@ RUN pnpm --filter @smart-cam/api build
 
 FROM node:20-alpine
 WORKDIR /app
+RUN apk add --no-cache openssl bash
 COPY --from=build /app /app
 WORKDIR /app/apps/api
+
+# Run migrations at start then boot API
 EXPOSE 3000
-CMD ["node", "dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
