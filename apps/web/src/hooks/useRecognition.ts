@@ -10,6 +10,8 @@ export function useRecognition(
   videoRef: React.RefObject<HTMLVideoElement>,
   enabled: boolean,
   fps = 2,
+  /** 'webcam' captures local frames; 'bridge' keeps the socket open but sends nothing. */
+  mode: 'webcam' | 'bridge' = 'webcam',
 ) {
   const socketRef = useRef<Socket | null>(null);
   const busyRef = useRef(false);
@@ -46,7 +48,7 @@ export function useRecognition(
   }, [enabled]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || mode !== 'webcam') return;
     const interval = setInterval(() => {
       const s = socketRef.current;
       const v = videoRef.current;
@@ -66,7 +68,7 @@ export function useRecognition(
       });
     }, Math.floor(1000 / fps));
     return () => clearInterval(interval);
-  }, [enabled, fps, videoRef]);
+  }, [enabled, fps, videoRef, mode]);
 
   return { status, last, error, socket };
 }

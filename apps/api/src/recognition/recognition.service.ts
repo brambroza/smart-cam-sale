@@ -39,12 +39,20 @@ export class RecognitionService {
   ) {}
 
   private readonly lastEmbeddingByClient = new Map<string, number[]>();
+  private readonly lastEmbeddingByChannel = new Map<string, number[]>();
   /** Cache latest embedding per client socket so enrollment can save it later. */
   public rememberEmbedding(clientId: string, embedding: number[]) {
     this.lastEmbeddingByClient.set(clientId, embedding);
   }
   public getLastEmbedding(clientId: string): number[] | undefined {
     return this.lastEmbeddingByClient.get(clientId);
+  }
+  /** Bridge mode: embeddings keyed by camera channel so any viewer console can enroll. */
+  public rememberChannelEmbedding(channel: string, embedding: number[]) {
+    this.lastEmbeddingByChannel.set(channel, embedding);
+  }
+  public getLastChannelEmbedding(channel: string): number[] | undefined {
+    return this.lastEmbeddingByChannel.get(channel);
   }
 
   async recognizeFrame(imageBase64: string, frameId: string): Promise<RecognitionMessage> {

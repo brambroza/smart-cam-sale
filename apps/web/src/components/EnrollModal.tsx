@@ -7,13 +7,15 @@ interface Props {
   open: boolean;
   onClose: () => void;
   socket: Socket | null;
+  /** In bridge mode the embedding lives server-side keyed by camera channel. */
+  channel?: string;
   guessGender?: 'male' | 'female' | 'unknown';
   guessAge?: number;
 }
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
-export function EnrollModal({ open, onClose, socket, guessGender, guessAge }: Props) {
+export function EnrollModal({ open, onClose, socket, channel, guessGender, guessAge }: Props) {
   const [step, setStep] = useState<'capture' | 'form' | 'saving' | 'done' | 'error'>('capture');
   const [embedding, setEmbedding] = useState<number[] | null>(null);
   const [form, setForm] = useState({
@@ -68,7 +70,7 @@ export function EnrollModal({ open, onClose, socket, guessGender, guessAge }: Pr
       socket.off('captured_embedding', handler);
     };
     socket.on('captured_embedding', handler);
-    socket.emit('capture_embedding');
+    socket.emit('capture_embedding', channel ? { channel } : undefined);
   };
 
   const submit = async () => {

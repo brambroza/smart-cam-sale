@@ -9,20 +9,33 @@ interface Props {
   faceBoxes: FaceBox[];
   processingMs?: number;
   error?: string | null;
+  /** Bridge mode: JPEG data URI pushed from an IP-camera bridge; replaces local video. */
+  remoteFrameSrc?: string | null;
+  sourceLabel?: string;
 }
 
 const VB_W = 640;
 const VB_H = 480;
 
-export function CameraPanel({ videoRef, ready, live, faceBoxes, processingMs, error }: Props) {
+export function CameraPanel({
+  videoRef,
+  ready,
+  live,
+  faceBoxes,
+  processingMs,
+  error,
+  remoteFrameSrc,
+  sourceLabel,
+}: Props) {
   const primary = faceBoxes[0];
+  const isBridge = remoteFrameSrc !== undefined && remoteFrameSrc !== null;
 
   return (
     <div className="relative glass-strong overflow-hidden shadow-card">
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
         <div className="glass px-3 py-1.5 text-xs font-mono tracking-wider flex items-center gap-2">
           <ScanFace className="w-3.5 h-3.5 text-neon-cyan" />
-          <span className="text-neon-cyan">CAM · MAIN</span>
+          <span className="text-neon-cyan">{sourceLabel ?? 'CAM · MAIN'}</span>
         </div>
         {processingMs !== undefined && (
           <div className="glass px-3 py-1.5 text-xs font-mono text-slate-300">
@@ -43,9 +56,13 @@ export function CameraPanel({ videoRef, ready, live, faceBoxes, processingMs, er
       </div>
 
       <div className="aspect-video bg-black relative">
-        <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+        {isBridge ? (
+          <img src={remoteFrameSrc!} className="w-full h-full object-cover" alt="camera stream" />
+        ) : (
+          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+        )}
 
-        {!ready && !error && (
+        {!isBridge && !ready && !error && (
           <div className="absolute inset-0 grid place-items-center text-slate-400">
             <div className="flex flex-col items-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin" />
