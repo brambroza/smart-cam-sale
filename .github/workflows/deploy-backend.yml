@@ -52,11 +52,10 @@ jobs:
           context: .
           file: apps/api/Dockerfile
           push: true
+          no-cache: true
           tags: |
             ${{ steps.meta.outputs.api_tag }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_API }}:latest
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,scope=api,mode=max
 
       - name: Build & push AI image
         uses: docker/build-push-action@v6

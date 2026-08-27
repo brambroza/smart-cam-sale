@@ -10,6 +10,9 @@ RUN pnpm install --frozen-lockfile || pnpm install
 # script explicitly.
 RUN pnpm --filter @smart-cam/api exec prisma generate
 RUN pnpm --filter @smart-cam/api run build
+# Fail loudly if nest build didn't actually produce dist/main.js — otherwise
+# the runtime stage crashes on Cannot find module.
+RUN test -f /app/apps/api/dist/main.js || (echo "❌ dist/main.js missing after build" && ls -la /app/apps/api/ && exit 1)
 
 FROM node:20-alpine
 WORKDIR /app
