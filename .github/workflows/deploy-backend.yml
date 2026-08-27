@@ -84,6 +84,11 @@ jobs:
             -n "${{ secrets.AZURE_AI_APP }}" \
             -g "${{ secrets.AZURE_RG }}" \
             --image "${{ needs.build-push.outputs.ai_tag }}"
+          # Ensure ingress port matches the real service (idempotent)
+          az containerapp ingress update \
+            -n "${{ secrets.AZURE_AI_APP }}" \
+            -g "${{ secrets.AZURE_RG }}" \
+            --target-port 8000 || true
 
       - name: Update API Container App
         run: |
@@ -91,6 +96,10 @@ jobs:
             -n "${{ secrets.AZURE_API_APP }}" \
             -g "${{ secrets.AZURE_RG }}" \
             --image "${{ needs.build-push.outputs.api_tag }}"
+          az containerapp ingress update \
+            -n "${{ secrets.AZURE_API_APP }}" \
+            -g "${{ secrets.AZURE_RG }}" \
+            --target-port 3000 || true
 
       - name: Show revision status
         run: |

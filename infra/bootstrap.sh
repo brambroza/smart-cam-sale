@@ -49,13 +49,27 @@ else
   echo "  → ใช้ env เดิม: $ENV_ID"
 fi
 
+# Bootstrap uses a public placeholder image because real GHCR images
+# don't exist until the GitHub Actions build+push workflow has run once.
+# The deploy workflow later updates image + target-port to the real values.
+PLACEHOLDER_IMAGE="mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+
+# Clean up any failed apps from a previous partial bootstrap
+for app in "$AI_APP" "$API_APP"; do
+  STATE=$(az containerapp show -n "$app" -g "$RG" --query "properties.provisioningState" -o tsv 2>/dev/null || true)
+  if [[ "$STATE" == "Failed" ]]; then
+    echo "▶ ลบ $app ที่ค้างในสถานะ Failed"
+    az containerapp delete -n "$app" -g "$RG" --yes -o none
+  fi
+done
+
 # ---------- AI service (internal ingress) ----------
-echo "▶ สร้าง AI service container app (internal, scale-to-zero)"
+echo "▶ สร้าง AI service container app (internal, scale-to-zero, placeholder image)"
 az containerapp create \
   -n "$AI_APP" -g "$RG" \
   --environment "$ENV_ID" \
-  --image "ghcr.io/$GH_OWNER/smart-cam-ai:latest" \
-  --ingress internal --target-port 8000 --transport auto \
+  --image "$PLACEHOLDER_IMAGE" \
+  --ingress internal --target-port 80 --transport auto \
   --min-replicas 0 --max-replicas 1 \
   --cpu 0.5 --memory 1.0Gi \
   --env-vars USE_MOCK=true MODEL_NAME=buffalo_s \
@@ -65,12 +79,12 @@ AI_FQDN=$(az containerapp show -n "$AI_APP" -g "$RG" --query "properties.configu
 echo "  → AI internal FQDN: $AI_FQDN"
 
 # ---------- API (external + WebSocket) ----------
-echo "▶ สร้าง API container app (external, WebSocket enabled)"
+echo "▶ สร้าง API container app (external, WebSocket enabled, placeholder image)"
 az containerapp create \
   -n "$API_APP" -g "$RG" \
   --environment "$ENV_ID" \
-  --image "ghcr.io/$GH_OWNER/smart-cam-api:latest" \
-  --ingress external --target-port 3000 --transport auto \
+  --image "$PLACEHOLDER_IMAGE" \
+  --ingress external --target-port 80 --transport auto \
   --min-replicas 0 --max-replicas 1 \
   --cpu 0.5 --memory 1.0Gi \
   --secrets "database-url=$NEON_URL" \
@@ -84,7 +98,7 @@ az containerapp create \
 API_FQDN=$(az containerapp show -n "$API_APP" -g "$RG" --query "properties.configuration.ingress.fqdn" -o tsv)
 echo "  → API public URL: https://$API_FQDN"
 
-# ---------- Registry credentials (ถ้า GHCR package เป็น private) ----------
+# ---------- Registry credentials so the first workflow deploy can pull GHCR ----------
 if [[ -n "${GHCR_PAT:-}" ]]; then
   echo "▶ ตั้ง GHCR pull credentials"
   for app in "$AI_APP" "$API_APP"; do
