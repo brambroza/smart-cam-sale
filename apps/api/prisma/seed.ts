@@ -1,4 +1,5 @@
 import { PrismaClient, MembershipTier, Gender } from '@prisma/client';
+import { PRODUCTS } from './products-seed';
 
 const prisma = new PrismaClient();
 
@@ -18,24 +19,7 @@ async function main() {
   await prisma.product.deleteMany();
 
   const products = await prisma.product.createManyAndReturn({
-    data: [
-      { name: 'อเมริกาโน่เย็น', category: 'coffee', price: 55, timeOfDay: 'morning', imageUrl: '/products/americano.png' },
-      { name: 'ลาเต้ร้อน', category: 'coffee', price: 65, timeOfDay: 'morning' },
-      { name: 'แซนวิชแฮมชีส', category: 'bakery', price: 45, timeOfDay: 'morning' },
-      { name: 'ครัวซองต์ช็อกโกแลต', category: 'bakery', price: 39, timeOfDay: 'morning' },
-      { name: 'ข้าวกล่องกะเพราไก่', category: 'meal', price: 65, timeOfDay: 'afternoon' },
-      { name: 'สลัดอกไก่', category: 'meal', price: 89, timeOfDay: 'afternoon', targetGender: Gender.female },
-      { name: 'น้ำเปล่า', category: 'drink', price: 12, timeOfDay: 'any' },
-      { name: 'เบียร์กระป๋อง', category: 'alcohol', price: 45, timeOfDay: 'evening', minAge: 20, targetGender: Gender.male },
-      { name: 'ไอศกรีมแท่ง', category: 'snack', price: 25, timeOfDay: 'afternoon' },
-      { name: 'มันฝรั่งทอด', category: 'snack', price: 30, timeOfDay: 'evening' },
-      { name: 'ชาเขียวมัทฉะ', category: 'drink', price: 55, timeOfDay: 'afternoon', targetGender: Gender.female },
-      { name: 'ซุปมิโสะร้อน', category: 'meal', price: 45, timeOfDay: 'night', minAge: 25 },
-      { name: 'ข้าวไข่ข้น', category: 'meal', price: 55, timeOfDay: 'morning' },
-      { name: 'ผ้าอนามัย', category: 'health', price: 65, targetGender: Gender.female },
-      { name: 'มาส์กหน้า', category: 'beauty', price: 39, targetGender: Gender.female, minAge: 18 },
-      { name: 'เจลใส่ผม', category: 'beauty', price: 89, targetGender: Gender.male },
-    ],
+    data: PRODUCTS,
   });
 
   const members = [

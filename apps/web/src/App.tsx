@@ -59,10 +59,11 @@ export default function App() {
       {/* Floating Product Browser button */}
       <motion.button
         onClick={() => setBrowserOpen(true)}
-        whileTap={{ scale: 0.97 }}
-        className="fixed bottom-6 right-6 z-30 flex items-center gap-2 pl-3.5 pr-4 py-2.5 rounded-md bg-paper-50 border border-paper-400 shadow-raised font-medium text-sm text-ink-900 hover:bg-paper-100"
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        className="fixed bottom-6 right-6 z-30 flex items-center gap-2 pl-4 pr-5 py-3 rounded-full glass-strong border border-white/15 shadow-glow font-semibold text-slate-100"
       >
-        <PackageOpen className="w-4 h-4 text-terracotta" />
+        <PackageOpen className="w-5 h-5 text-neon-cyan" />
         <span>สินค้าทั้งหมด</span>
       </motion.button>
 
@@ -70,13 +71,15 @@ export default function App() {
       {guestPrimary && (
         <motion.button
           onClick={() => setEnrollOpen(true)}
-          initial={{ opacity: 0, y: 8 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 8 }}
-          className="fixed bottom-6 left-6 z-30 flex items-center gap-2 pl-3.5 pr-4 py-2.5 rounded-md bg-terracotta text-paper-50 font-semibold text-sm shadow-raised hover:bg-terracotta-deep"
+          exit={{ opacity: 0, y: 10 }}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          className="fixed bottom-6 left-6 z-30 flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-gradient-to-br from-violet-500 to-cyan-400 text-ink-950 font-bold shadow-glow"
         >
-          <UserPlus className="w-4 h-4" />
-          <span>สมัครสมาชิกลูกค้าคนนี้</span>
+          <UserPlus className="w-5 h-5" />
+          <span>สมัครสมาชิก</span>
         </motion.button>
       )}
 

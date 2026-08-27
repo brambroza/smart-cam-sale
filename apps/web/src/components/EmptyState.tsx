@@ -8,19 +8,26 @@ export function EmptyState({ live, status }: { live: boolean; status: Status }) 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="surface-raised p-8 grid place-items-center text-center min-h-[280px]"
+      className="glass-strong p-8 grid place-items-center text-center min-h-[300px]"
     >
       <div className="max-w-xs">
-        <div className="mx-auto w-14 h-14 rounded-md bg-paper-200 grid place-items-center text-ink-700">
-          {status === 'error' ? <WifiOff className="w-6 h-6 text-alert" /> : <ScanFace className="w-6 h-6" />}
+        <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/30 to-cyan-400/20 grid place-items-center relative">
+          {status === 'error' ? (
+            <WifiOff className="w-8 h-8 text-rose-300" />
+          ) : (
+            <>
+              <ScanFace className="w-8 h-8 text-neon-cyan" />
+              <span className="absolute inset-0 rounded-2xl border-2 border-neon-cyan/40 animate-pulse-ring" />
+            </>
+          )}
         </div>
-        <h3 className="mt-4 font-display font-bold text-lg text-ink-900">
-          {live ? 'รอลูกค้าเข้ากรอบ' : 'ระบบพร้อมใช้งาน'}
+        <h3 className="mt-4 font-display font-bold text-lg text-slate-100">
+          {live ? 'รอลูกค้าเข้ากรอบ…' : 'ระบบพร้อมใช้งาน'}
         </h3>
-        <p className="mt-1 text-sm text-ink-500 leading-relaxed">
+        <p className="mt-1 text-sm text-slate-400 leading-relaxed">
           {live
-            ? 'ให้ลูกค้าหันหน้าเข้าหากล้อง ระบบจะประเมินอายุ · เพศ และตรวจสอบสถานะสมาชิกให้อัตโนมัติ'
-            : 'กดปุ่ม "เริ่มถ่ายทอด" ที่มุมขวาบนเพื่อเริ่มการวิเคราะห์'}
+            ? 'ให้ลูกค้าหันหน้าเข้าหากล้อง ระบบจะประเมินอายุ · เพศ และตรวจสอบสถานะสมาชิกอัตโนมัติ'
+            : 'กดปุ่ม "เริ่มถ่ายทอด" เพื่อเปิดกล้องและเริ่มการวิเคราะห์เรียลไทม์'}
         </p>
       </div>
     </motion.div>
