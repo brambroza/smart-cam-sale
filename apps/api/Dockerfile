@@ -5,8 +5,11 @@ COPY package.json pnpm-workspace.yaml pnpm-lock.yaml* ./
 COPY packages ./packages
 COPY apps/api ./apps/api
 RUN pnpm install --frozen-lockfile || pnpm install
-RUN pnpm --filter @smart-cam/api prisma generate
-RUN pnpm --filter @smart-cam/api build
+# pnpm --filter <pkg> <name> resolves <name> as a package.json script, not a
+# binary — use `exec` to run the prisma CLI itself and `run` to run the build
+# script explicitly.
+RUN pnpm --filter @smart-cam/api exec prisma generate
+RUN pnpm --filter @smart-cam/api run build
 
 FROM node:20-alpine
 WORKDIR /app
