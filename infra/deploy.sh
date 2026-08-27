@@ -21,12 +21,17 @@ TAG="${1:-latest}"
 API_IMAGE="ghcr.io/$GH_OWNER/smart-cam-api:$TAG"
 AI_IMAGE="ghcr.io/$GH_OWNER/smart-cam-ai:$TAG"
 
-echo "▶ AI: $AI_IMAGE"
-az containerapp update -n "$AI_APP" -g "$RG" --image "$AI_IMAGE" -o none
+# --revision-suffix forces a new revision even when the image tag string
+# hasn't changed — otherwise ACA sees ":latest" as the same image and skips
+# the pull.
+SUFFIX="$(date -u +%Y%m%d%H%M%S)"
+
+echo "▶ AI: $AI_IMAGE (rev: $SUFFIX)"
+az containerapp update -n "$AI_APP" -g "$RG" --image "$AI_IMAGE" --revision-suffix "$SUFFIX" -o none
 az containerapp ingress update -n "$AI_APP" -g "$RG" --target-port 8000 -o none 2>/dev/null || true
 
-echo "▶ API: $API_IMAGE"
-az containerapp update -n "$API_APP" -g "$RG" --image "$API_IMAGE" -o none
+echo "▶ API: $API_IMAGE (rev: $SUFFIX)"
+az containerapp update -n "$API_APP" -g "$RG" --image "$API_IMAGE" --revision-suffix "$SUFFIX" -o none
 az containerapp ingress update -n "$API_APP" -g "$RG" --target-port 3000 -o none 2>/dev/null || true
 
 echo ""
