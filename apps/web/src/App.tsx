@@ -33,16 +33,18 @@ export default function App() {
   const [camMgrOpen, setCamMgrOpen] = useState(false);
   const [source, setSource] = useState<CamSource>(() => loadPref('cam_source', 'webcam'));
   const [channel, setChannel] = useState<string>(() => loadPref('cam_channel', 'store-main'));
+  const [deviceId, setDeviceId] = useState<string | null>(() => loadPref('cam_device', null));
 
   useEffect(() => {
     try {
       localStorage.setItem('cam_source', JSON.stringify(source));
       localStorage.setItem('cam_channel', JSON.stringify(channel));
+      localStorage.setItem('cam_device', JSON.stringify(deviceId));
     } catch {}
-  }, [source, channel]);
+  }, [source, channel, deviceId]);
 
   const isBridge = source === 'bridge';
-  const { videoRef, ready, error: camError } = useCamera(live && !isBridge);
+  const { videoRef, ready, error: camError, devices } = useCamera(live && !isBridge, deviceId);
   const { status, last: webcamLast, error: recError, socket } = useRecognition(
     videoRef,
     live,
@@ -79,6 +81,25 @@ export default function App() {
         >
           IP Camera (Hikvision / Xiaomi)
         </SourceTab>
+
+        {/* Local camera device picker — shows when this device has >1 camera */}
+        {!isBridge && devices.length > 1 && (
+          <div className="flex items-center gap-2 ml-2">
+            <span className="text-xs text-slate-500">อุปกรณ์:</span>
+            <select
+              value={deviceId ?? ''}
+              onChange={(e) => setDeviceId(e.target.value || null)}
+              className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-100 max-w-52 focus:border-neon-cyan/50 focus:outline-none"
+            >
+              <option value="" className="bg-ink-900">อัตโนมัติ (กล้องหน้า)</option>
+              {devices.map((d) => (
+                <option key={d.deviceId} value={d.deviceId} className="bg-ink-900">
+                  {d.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {isBridge && (
           <div className="flex items-center gap-2 ml-2">
             <span className="text-xs text-slate-500">channel:</span>
