@@ -112,9 +112,11 @@ if [[ -n "${GHCR_PAT:-}" ]]; then
 fi
 
 # ---------- Static Web App ----------
-echo "▶ สร้าง Static Web App สำหรับ frontend"
+# SWA รองรับเฉพาะ centralus, eastus2, westus2, westeurope, eastasia
+: "${SWA_LOCATION:=eastasia}"
+echo "▶ สร้าง Static Web App สำหรับ frontend ($SWA_LOCATION)"
 az staticwebapp create \
-  -n "$SWA_NAME" -g "$RG" -l "$LOCATION" \
+  -n "$SWA_NAME" -g "$RG" -l "$SWA_LOCATION" \
   --sku Free \
   -o none || echo "(SWA อาจมีอยู่แล้ว)"
 
