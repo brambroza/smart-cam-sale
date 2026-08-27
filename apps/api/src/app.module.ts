@@ -9,12 +9,14 @@ import { MembersController } from './members/members.controller';
 import { MembersService } from './members/members.service';
 import { ProductsController } from './products/products.controller';
 import { ProductsService } from './products/products.service';
+import { CamerasController } from './cameras/cameras.controller';
+import { CamerasService } from './cameras/cameras.service';
 import { HealthController } from './health.controller';
 import { ClaudeScriptService } from './ai/claude-script.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true })],
-  controllers: [HealthController, MembersController, ProductsController],
+  controllers: [HealthController, MembersController, ProductsController, CamerasController],
   providers: [
     PrismaService,
     RecognitionGateway,
@@ -23,6 +25,7 @@ import { ClaudeScriptService } from './ai/claude-script.service';
     RecommendationService,
     MembersService,
     ProductsService,
+    CamerasService,
     ClaudeScriptService,
   ],
 })

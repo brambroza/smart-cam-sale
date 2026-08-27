@@ -11,7 +11,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { EmptyState } from './components/EmptyState';
 import { EnrollModal } from './components/EnrollModal';
 import { ProductBrowser } from './components/ProductBrowser';
-import { PackageOpen, UserPlus, Webcam, Video } from 'lucide-react';
+import { CameraManager } from './components/CameraManager';
+import { PackageOpen, UserPlus, Webcam, Video, Settings2 } from 'lucide-react';
 import { cn } from './lib/utils';
 
 type CamSource = 'webcam' | 'bridge';
@@ -29,6 +30,7 @@ export default function App() {
   const [live, setLive] = useState(true);
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [camMgrOpen, setCamMgrOpen] = useState(false);
   const [source, setSource] = useState<CamSource>(() => loadPref('cam_source', 'webcam'));
   const [channel, setChannel] = useState<string>(() => loadPref('cam_channel', 'store-main'));
 
@@ -98,6 +100,14 @@ export default function App() {
             </span>
           </div>
         )}
+        <button
+          onClick={() => setCamMgrOpen(true)}
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white/[0.03] text-slate-400 border-white/10 hover:border-white/25 hover:text-slate-200 transition"
+          title="เพิ่ม/แก้ไขกล้อง IP"
+        >
+          <Settings2 className="w-3.5 h-3.5" />
+          จัดการกล้อง
+        </button>
       </div>
 
       <main className="flex-1 grid gap-4 p-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
@@ -167,6 +177,14 @@ export default function App() {
         guessAge={guestPrimary?.result.estimatedAge}
       />
       <ProductBrowser open={browserOpen} onClose={() => setBrowserOpen(false)} />
+      <CameraManager
+        open={camMgrOpen}
+        onClose={() => setCamMgrOpen(false)}
+        onUseChannel={(ch) => {
+          setChannel(ch);
+          setSource('bridge');
+        }}
+      />
     </div>
   );
 }
