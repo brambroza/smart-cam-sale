@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 html,
@@ -13,38 +13,80 @@ body,
 }
 
 body {
-  font-family: 'Inter', 'Noto Sans Thai', system-ui, sans-serif;
+  font-family: 'Inter', 'IBM Plex Sans Thai', system-ui, sans-serif;
+  color: #2A1E14;
   background:
-    radial-gradient(1200px 800px at 20% 0%, rgba(167, 139, 250, 0.18), transparent 60%),
-    radial-gradient(900px 700px at 100% 100%, rgba(34, 211, 238, 0.15), transparent 60%),
-    #050510;
+    /* subtle paper grain */
+    radial-gradient(circle at 20% 20%, rgba(184, 167, 140, 0.10) 0.5px, transparent 0.5px) 0 0 / 3px 3px,
+    radial-gradient(circle at 60% 80%, rgba(184, 167, 140, 0.08) 0.5px, transparent 0.5px) 1.5px 1.5px / 3px 3px,
+    #EFE9DD;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 @layer components {
-  .glass {
-    @apply bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-2xl;
+  .surface {
+    @apply bg-paper-100 border border-paper-400 rounded-lg;
   }
-  .glass-strong {
-    @apply bg-white/[0.06] backdrop-blur-2xl border border-white/15 rounded-2xl;
+  .surface-raised {
+    @apply bg-paper-50 border border-paper-400 rounded-lg shadow-card;
+  }
+  .surface-sunken {
+    @apply bg-paper-200 border border-paper-400 rounded-md;
   }
   .btn-primary {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold
-      bg-gradient-to-br from-violet-500 to-cyan-400 text-ink-950 hover:shadow-glow transition;
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-md font-semibold
+      bg-terracotta text-paper-50 hover:bg-terracotta-deep transition;
+    box-shadow: 0 1px 0 rgba(158, 62, 30, 0.4) inset, 0 2px 4px rgba(158, 62, 30, 0.18);
   }
-  .tier-bronze { @apply bg-gradient-to-br from-amber-700 to-yellow-500 text-white; }
-  .tier-silver { @apply bg-gradient-to-br from-slate-400 to-slate-200 text-ink-950; }
-  .tier-gold   { @apply bg-gradient-to-br from-yellow-400 to-amber-500 text-ink-950; }
-  .tier-platinum { @apply bg-gradient-to-br from-cyan-300 via-violet-300 to-fuchsia-300 text-ink-950; }
+  .btn-primary:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-ink-700
+      bg-paper-100 border border-paper-400 hover:bg-paper-50 transition;
+  }
+  .tier-bronze {
+    background: linear-gradient(135deg, #C08557 0%, #A66B3F 100%);
+    color: #FBF7EC;
+  }
+  .tier-silver {
+    background: linear-gradient(135deg, #B9BAB6 0%, #8F8F8B 100%);
+    color: #1A120A;
+  }
+  .tier-gold {
+    background: linear-gradient(135deg, #D0AE6C 0%, #B8944F 100%);
+    color: #1A120A;
+  }
+  .tier-platinum {
+    background: linear-gradient(135deg, #C7B99A 0%, #A69976 100%);
+    color: #1A120A;
+  }
+  .label-eyebrow {
+    @apply text-[10.5px] uppercase tracking-[0.14em] text-ink-500 font-medium;
+  }
+  .hairline {
+    @apply h-px bg-paper-400;
+  }
+}
+
+/* Retail-style receipt divider */
+.perforated {
+  background-image: linear-gradient(to right, #B8A78C 50%, transparent 50%);
+  background-size: 8px 1px;
+  background-repeat: repeat-x;
+  background-position: center;
+  height: 1px;
 }
 
 .shimmer {
   background-image: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.06) 40%,
-    rgba(255, 255, 255, 0.14) 50%,
-    rgba(255, 255, 255, 0.06) 60%,
-    rgba(255, 255, 255, 0) 100%
+    rgba(42, 30, 20, 0) 0%,
+    rgba(42, 30, 20, 0.05) 40%,
+    rgba(42, 30, 20, 0.10) 50%,
+    rgba(42, 30, 20, 0.05) 60%,
+    rgba(42, 30, 20, 0) 100%
   );
   background-size: 500px 100%;
   background-repeat: no-repeat;

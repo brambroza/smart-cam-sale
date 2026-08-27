@@ -61,7 +61,7 @@ export function ProductBrowser({ open, onClose }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-40 flex justify-end bg-black/60 backdrop-blur-sm"
+          className="fixed inset-0 z-40 flex justify-end bg-ink-950/50 backdrop-blur-sm"
           onClick={onClose}
         >
           <motion.aside
@@ -69,30 +69,30 @@ export function ProductBrowser({ open, onClose }: Props) {
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-            className="w-full max-w-md h-full glass-strong border-l border-white/10 shadow-card overflow-y-auto"
+            className="w-full max-w-md h-full bg-paper-100 border-l border-paper-400 shadow-raised overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="p-5 border-b border-white/10 sticky top-0 bg-ink-900/80 backdrop-blur-xl z-10">
+            <div className="p-5 border-b border-paper-400 sticky top-0 bg-paper-50 z-10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <PackageOpen className="w-5 h-5 text-neon-cyan" />
-                  <h2 className="font-display font-bold text-lg">แค็ตตาล็อกสินค้า</h2>
+                  <PackageOpen className="w-5 h-5 text-terracotta" />
+                  <h2 className="font-display font-bold text-lg text-ink-900">แค็ตตาล็อกสินค้า</h2>
                 </div>
                 <button
                   onClick={onClose}
-                  className="p-2 rounded-lg hover:bg-white/10 transition"
+                  className="p-2 rounded hover:bg-paper-200 transition text-ink-500"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="mt-3 relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-500" />
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
                   placeholder="ค้นหาสินค้า..."
-                  className="w-full bg-white/[0.04] border border-white/10 rounded-xl pl-9 pr-3 py-2 text-sm text-slate-100 focus:border-neon-cyan/50 focus:outline-none"
+                  className="w-full bg-paper-50 border border-paper-400 rounded pl-9 pr-3 py-2 text-sm text-ink-900 focus:border-terracotta focus:outline-none"
                 />
               </div>
 
@@ -111,30 +111,28 @@ export function ProductBrowser({ open, onClose }: Props) {
             </div>
 
             <div className="p-5 space-y-2">
-              {loading && <div className="text-center text-slate-500 py-8">กำลังโหลด...</div>}
+              {loading && <div className="text-center text-ink-500 py-8">กำลังโหลด...</div>}
               {!loading && products.length === 0 && (
-                <div className="text-center text-slate-500 py-12">ไม่พบสินค้า</div>
+                <div className="text-center text-ink-500 py-12">ไม่พบสินค้า</div>
               )}
               {products.map((p, i) => (
                 <motion.div
                   key={p.id}
-                  initial={{ opacity: 0, y: 6 }}
+                  initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(i * 0.015, 0.3) }}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.03] border border-white/10 hover:border-neon-cyan/30 transition"
+                  transition={{ delay: Math.min(i * 0.012, 0.25) }}
+                  className="flex items-center gap-3 p-2.5 rounded bg-paper-50 border border-paper-400 hover:border-terracotta/50 transition"
                 >
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400/20 to-violet-500/20 grid place-items-center">
+                  <div className="w-9 h-9 rounded bg-paper-300 grid place-items-center text-ink-700">
                     <ShoppingBag className="w-4 h-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm truncate">{p.name}</span>
-                    </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="font-semibold text-sm text-ink-900 truncate">{p.name}</div>
+                    <div className="text-[11px] text-ink-500">
                       {CATEGORY_LABELS[p.category] ?? p.category}
                     </div>
                   </div>
-                  <div className="font-mono text-sm text-neon-cyan">{formatThb(p.price)}</div>
+                  <div className="font-mono text-sm text-terracotta-deep">{formatThb(p.price)}</div>
                 </motion.div>
               ))}
             </div>
@@ -160,8 +158,8 @@ function CatChip({
       className={
         'text-[11px] px-2.5 py-1 rounded-full border transition ' +
         (active
-          ? 'bg-neon-cyan/20 text-neon-cyan border-neon-cyan/50'
-          : 'bg-white/[0.03] text-slate-400 border-white/10 hover:border-white/20')
+          ? 'bg-terracotta text-paper-50 border-terracotta'
+          : 'bg-paper-50 text-ink-700 border-paper-400 hover:border-ink-500')
       }
     >
       {children}

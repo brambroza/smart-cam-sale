@@ -4,39 +4,62 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        display: ['Sora', 'Noto Sans Thai', 'system-ui', 'sans-serif'],
-        body: ['Inter', 'Noto Sans Thai', 'system-ui', 'sans-serif'],
+        display: ['Fraunces', 'IBM Plex Sans Thai', 'serif'],
+        body: ['Inter', 'IBM Plex Sans Thai', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'Menlo', 'monospace'],
       },
       colors: {
-        ink: {
-          950: '#050510',
-          900: '#0a0a1a',
-          800: '#0f0f24',
-          700: '#171735',
+        paper: {
+          50: '#FBF7EC',
+          100: '#F8F3E7',
+          200: '#EFE9DD',
+          300: '#E1D7C1',
+          400: '#D6C9AF',
+          500: '#B8A78C',
         },
-        neon: {
-          cyan: '#22d3ee',
-          violet: '#a78bfa',
-          pink: '#f472b6',
-          lime: '#a3e635',
+        ink: {
+          950: '#1A120A',
+          900: '#2A1E14',
+          800: '#3D2C1E',
+          700: '#5C4636',
+          500: '#8D7B67',
+        },
+        terracotta: {
+          DEFAULT: '#C7532A',
+          soft: '#E27B4E',
+          deep: '#9E3E1E',
+          tint: '#F0DCCB',
+        },
+        moss: {
+          DEFAULT: '#3F6B54',
+          soft: '#5F8B72',
+          deep: '#2C4F3D',
+          tint: '#D3E1D7',
+        },
+        brass: {
+          DEFAULT: '#B8944F',
+          soft: '#D0AE6C',
+          deep: '#8F7136',
+          tint: '#EFE3C7',
+        },
+        alert: {
+          DEFAULT: '#A83A2A',
+          tint: '#F0D5CE',
         },
       },
       boxShadow: {
-        glow: '0 0 40px -8px rgba(167,139,250,.55)',
-        card: '0 20px 60px -20px rgba(0,0,0,.6)',
-      },
-      backgroundImage: {
-        'radial-fade':
-          'radial-gradient(1200px 800px at 20% 0%, rgba(167,139,250,.15), transparent), radial-gradient(800px 600px at 90% 100%, rgba(34,211,238,.12), transparent)',
+        card: '0 1px 2px rgba(42,30,20,0.05), 0 2px 6px rgba(42,30,20,0.06)',
+        raised: '0 1px 2px rgba(42,30,20,0.06), 0 8px 20px -6px rgba(42,30,20,0.12)',
+        pressed: 'inset 0 1px 2px rgba(42,30,20,0.10)',
       },
       animation: {
-        'pulse-ring': 'pulseRing 2s ease-out infinite',
+        'tick-pulse': 'tickPulse 2.6s ease-in-out infinite',
         shimmer: 'shimmer 2.4s linear infinite',
       },
       keyframes: {
-        pulseRing: {
-          '0%': { transform: 'scale(.9)', opacity: '.7' },
-          '80%,100%': { transform: 'scale(1.6)', opacity: '0' },
+        tickPulse: {
+          '0%,100%': { opacity: '0.55' },
+          '50%': { opacity: '1' },
         },
         shimmer: {
           '0%': { backgroundPosition: '-500px 0' },
