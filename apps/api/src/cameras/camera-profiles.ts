@@ -50,8 +50,11 @@ export const BRAND_PROFILES: Record<string, BrandProfile> = {
     label: 'Xiaomi (firmware ทางเลือก)',
     defaultPort: 8554,
     paths: { main: '/unicast', sub: '/unicast' },
-    models: ['Mi 360° 2K', 'Mi 360° 1080p', 'Yi Home', 'Yi Dome', 'อื่น ๆ'],
-    note: 'ต้องลง firmware ทางเลือก (yi-hack / Dafang-Hacks) ก่อน — ดู docs/CAMERA-SOURCES.md',
+    models: ['Mi 360° 1080p (MJSXJ02CM)', 'Yi Home', 'Yi Dome', 'อื่น ๆ'],
+    note:
+      'ต้องลง firmware ทางเลือก (yi-hack / Dafang-Hacks) ก่อน — ใช้ได้เฉพาะรุ่นเก่า ' +
+      '⚠️ C-series (C200/C300/C400) ไม่รองรับ RTSP และยังไม่มี firmware ทางเลือก — ' +
+      'แนะนำใช้ Tapo/Imou แทน หรือผ่าน Home Assistant + go2rtc (มี delay)',
   },
   reolink: {
     label: 'Reolink',

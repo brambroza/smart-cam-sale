@@ -63,9 +63,9 @@ rtsp://<user>:<pass>@<ip>:554/cam/realmonitor?channel=1&subtype=1
 
 ### Xiaomi (Mi Home / Xiaomi Smart Camera)
 
-⚠️ Firmware ปกติของ Xiaomi **ไม่เปิด RTSP** — มี 2 ทาง:
+⚠️ Firmware ปกติของ Xiaomi **ไม่เปิด RTSP** และรองรับต่างกันตามรุ่น:
 
-**ทาง A — เปิด RTSP ผ่าน firmware ทางเลือก** (นิยมสุด)
+**รุ่นเก่า (MJSXJ02CM Mi 360° 1080p, Yi Home/Dome)** — ลง firmware ทางเลือกได้:
 1. ลง [Xiaomi-camera-hacks](https://github.com/EliasKotlyar/Xiaomi-Dafang-Hacks) หรือ
    [yi-hack](https://github.com/roleoroleo/yi-hack-MStar) ตามรุ่นกล้อง (ทำผ่าน SD card)
 2. หลังลงจะได้ RTSP:
@@ -73,9 +73,13 @@ rtsp://<user>:<pass>@<ip>:554/cam/realmonitor?channel=1&subtype=1
    rtsp://<ip>:8554/unicast
    ```
 
-**ทาง B — ใช้ Xiaomi ผ่าน Home Assistant + go2rtc**
-ถ้ามี Home Assistant อยู่แล้ว ให้ add กล้องผ่าน Xiaomi integration แล้วใช้ go2rtc
-restream ออกมาเป็น RTSP ให้ bridge ต่อ
+**รุ่นใหม่ C-series (C200 / C300 / C400 / C500)** — ❌ **ไม่รองรับ RTSP/ONVIF**
+([Xiaomi ยืนยันเอง](https://www.mi.com/global/support/faq/details/KA-515565/))
+และยังไม่มี firmware ทางเลือกรองรับชิปเซ็ตรุ่นนี้ ทางเลือกคือ:
+- **ผ่าน Home Assistant** — ลง [ha_xiaomi_home](https://github.com/XiaoMi/ha_xiaomi_home)
+  (official integration) + go2rtc restream เป็น RTSP — ⚠️ delay 2-5 วิ ไม่เหมาะ real-time
+- **แนะนำ:** ใช้กล้องที่เปิด RTSP ได้ตรง ๆ แทน — Tapo C200 (~700฿) / Imou Ranger 2
+  ตั้งเสร็จใน 5 นาที
 
 ### TP-Link Tapo
 
