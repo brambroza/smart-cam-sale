@@ -56,19 +56,33 @@ export function CameraManager({ open, onClose, onUseChannel }: Props) {
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const refresh = () =>
     fetch(`${API_BASE}/cameras`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(setCameras)
       .catch(() => setCameras([]));
 
   useEffect(() => {
     if (!open) return;
+    setApiError(null);
     fetch(`${API_BASE}/cameras/profiles`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(setProfiles)
-      .catch(() => {});
+      .catch((e) => {
+        setProfiles([]);
+        setApiError(
+          `เชื่อมต่อ API ไม่สำเร็จ (${(e as Error).message}) — ` +
+            'backend อาจยังเป็นเวอร์ชันเก่า ให้ deploy backend ล่าสุดก่อน (./infra/deploy.sh)',
+        );
+      });
     refresh();
     setMode('list');
     setError(null);
@@ -192,6 +206,11 @@ export function CameraManager({ open, onClose, onUseChannel }: Props) {
             </div>
 
             <div className="p-6">
+              {apiError && (
+                <div className="mb-4 text-xs text-rose-300 bg-rose-500/10 border border-rose-400/30 rounded-lg px-3 py-2 break-words">
+                  ⚠️ {apiError}
+                </div>
+              )}
               {mode === 'list' && (
                 <>
                   {cameras.length === 0 && (
