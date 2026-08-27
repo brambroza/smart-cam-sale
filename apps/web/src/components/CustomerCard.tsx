@@ -1,10 +1,32 @@
+import * as React from 'react';
 import { motion } from 'framer-motion';
-import { Crown, Sparkles, User, Users, ShoppingBag, Clock, TrendingUp, UserPlus } from 'lucide-react';
-import type { RecognitionResult } from '@smart-cam/shared-types';
+import { Crown, Sparkles, User, Users, ShoppingBag, Clock, TrendingUp, UserPlus, Lock } from 'lucide-react';
+import type { RecognitionResult, MemberProfile, PurchaseSummary, RecommendedProduct } from '@smart-cam/shared-types';
 import { ageBucketLabel, cn, formatThb, relativeTime } from '../lib/utils';
 
-export function CustomerCard({ result, compact = false }: { result: RecognitionResult; compact?: boolean }) {
-  const isMember = result.isMember && result.member;
+interface HeldSlice {
+  suggestedScript: string;
+  recentPurchases: PurchaseSummary[];
+  recommendations: RecommendedProduct[];
+  member?: MemberProfile;
+  heldSince: number;
+}
+
+export function CustomerCard({
+  result,
+  held,
+  compact = false,
+}: {
+  result: RecognitionResult;
+  held?: HeldSlice;
+  compact?: boolean;
+}) {
+  // Merge live-smoothed fields (age/matchConfidence/bbox) with held display data
+  const displayMember = held?.member ?? result.member;
+  const displayScript = held?.suggestedScript ?? result.suggestedScript;
+  const displayPurchases = held?.recentPurchases ?? result.recentPurchases;
+  const displayRecs = held?.recommendations ?? result.recommendations;
+  const isMember = result.isMember && displayMember;
   return (
     <motion.div
       layout
@@ -25,7 +47,7 @@ export function CustomerCard({ result, compact = false }: { result: RecognitionR
           animate={{ scale: 1 }}
           className={cn(
             'w-16 h-16 rounded-2xl grid place-items-center shadow-glow',
-            isMember ? `tier-${result.member!.tier}` : 'bg-white/10',
+            isMember ? `tier-${displayMember!.tier}` : 'bg-white/10',
           )}
         >
           {isMember ? <Crown className="w-8 h-8" /> : <User className="w-8 h-8 text-slate-300" />}
@@ -34,16 +56,16 @@ export function CustomerCard({ result, compact = false }: { result: RecognitionR
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="font-display text-2xl font-bold truncate">
-              {isMember ? result.member!.displayName : 'ลูกค้าใหม่'}
+              {isMember ? displayMember!.displayName : 'ลูกค้าใหม่'}
             </h2>
             {isMember && (
-              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', `tier-${result.member!.tier}`)}>
-                {result.member!.tier.toUpperCase()}
+              <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full', `tier-${displayMember!.tier}`)}>
+                {displayMember!.tier.toUpperCase()}
               </span>
             )}
           </div>
           <p className="text-sm text-slate-400 truncate">
-            {isMember ? result.member!.fullName : 'ยังไม่ใช่สมาชิก · ชวนสมัครวันนี้'}
+            {isMember ? displayMember!.fullName : 'ยังไม่ใช่สมาชิก · ชวนสมัครวันนี้'}
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2 text-xs">
@@ -64,41 +86,46 @@ export function CustomerCard({ result, compact = false }: { result: RecognitionR
 
       {!compact && isMember && (
         <div className="mt-5 grid grid-cols-3 gap-2">
-          <Stat label="แต้มสะสม" value={result.member!.points.toLocaleString()} accent="text-neon-cyan" />
-          <Stat label="ยอดซื้อรวม" value={formatThb(result.member!.totalSpend)} accent="text-neon-lime" />
-          <Stat label="เข้าร้าน" value={`${result.member!.visitCount} ครั้ง`} accent="text-neon-violet" />
+          <Stat label="แต้มสะสม" value={displayMember!.points.toLocaleString()} accent="text-neon-cyan" />
+          <Stat label="ยอดซื้อรวม" value={formatThb(displayMember!.totalSpend)} accent="text-neon-lime" />
+          <Stat label="เข้าร้าน" value={`${displayMember!.visitCount} ครั้ง`} accent="text-neon-violet" />
         </div>
       )}
 
       {compact ? (
         // Compact secondary face — show only top recommendation + script hint
-        result.recommendations[0] && (
+        displayRecs[0] && (
           <div className="mt-3 flex items-center gap-2 text-xs text-slate-300">
             <TrendingUp className="w-3.5 h-3.5 text-neon-lime shrink-0" />
             <span className="truncate">
-              แนะ <span className="font-semibold text-slate-100">{result.recommendations[0].name}</span> · {formatThb(result.recommendations[0].price)}
+              แนะ <span className="font-semibold text-slate-100">{displayRecs[0].name}</span> · {formatThb(displayRecs[0].price)}
             </span>
           </div>
         )
       ) : (
         <>
           <div className="mt-5">
-            <SectionHeader icon={<Sparkles className="w-4 h-4 text-neon-violet" />} title="สคริปต์แนะนำพนักงาน" />
+            <SectionHeader
+              icon={<Sparkles className="w-4 h-4 text-neon-violet" />}
+              title="สคริปต์แนะนำพนักงาน"
+              badge={held ? <HoldChip since={held.heldSince} /> : undefined}
+            />
             <motion.div
+              key={displayScript}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
+              transition={{ duration: 0.4 }}
               className="mt-2 p-3 rounded-xl border border-violet-400/30 bg-violet-500/10 text-slate-100 leading-relaxed"
             >
-              <span className="font-medium">"{result.suggestedScript}"</span>
+              <span className="font-medium">"{displayScript}"</span>
             </motion.div>
           </div>
 
-          {result.recentPurchases.length > 0 && (
+          {displayPurchases.length > 0 && (
             <div className="mt-5">
               <SectionHeader icon={<Clock className="w-4 h-4 text-neon-cyan" />} title="ประวัติซื้อ" />
               <ul className="mt-2 space-y-1.5">
-                {result.recentPurchases.slice(0, 3).map((p) => (
+                {displayPurchases.slice(0, 3).map((p) => (
                   <li key={p.productId} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg bg-white/[0.03]">
                     <span className="truncate">{p.productName}</span>
                     <span className="text-xs text-slate-400 shrink-0">
@@ -116,7 +143,7 @@ export function CustomerCard({ result, compact = false }: { result: RecognitionR
               title={isMember ? 'แนะนำสำหรับลูกค้าคนนี้' : 'สินค้ายอดนิยมช่วงนี้'}
             />
             <div className="mt-3 grid grid-cols-1 gap-2">
-              {result.recommendations.map((r, i) => (
+              {displayRecs.map((r, i) => (
                 <motion.div
                   key={r.productId}
                   initial={{ opacity: 0, x: 12 }}
@@ -173,14 +200,51 @@ function Stat({ label, value, accent }: { label: string; value: string; accent: 
   );
 }
 
-function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }) {
+function SectionHeader({
+  icon,
+  title,
+  badge,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  badge?: React.ReactNode;
+}) {
   return (
     <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-slate-400">
       {icon}
       <span>{title}</span>
       <div className="flex-1 h-px bg-gradient-to-r from-white/10 to-transparent" />
+      {badge}
     </div>
   );
+}
+
+function HoldChip({ since }: { since: number }) {
+  const HOLD_MS = 10_000;
+  return (
+    <motion.span
+      key={since}
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-400/30 text-[10px] text-violet-200"
+    >
+      <Lock className="w-2.5 h-2.5" />
+      <span className="normal-case tracking-normal">
+        <CountdownText total={HOLD_MS} start={since} />
+      </span>
+    </motion.span>
+  );
+}
+
+function CountdownText({ total, start }: { total: number; start: number }) {
+  const [remaining, setRemaining] = React.useState(() => Math.max(0, total - (Date.now() - start)));
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setRemaining(Math.max(0, total - (Date.now() - start)));
+    }, 500);
+    return () => clearInterval(id);
+  }, [total, start]);
+  return <>ล็อค {(remaining / 1000).toFixed(0)}s</>;
 }
 
 function ScoreBar({ score }: { score: number }) {

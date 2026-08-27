@@ -36,7 +36,12 @@ export default function App() {
               <EmptyState key="empty" live={live} status={status} />
             ) : (
               faces.map((f, idx) => (
-                <CustomerCard key={f.identityKey} result={f.result} compact={idx > 0} />
+                <CustomerCard
+                  key={f.identityKey}
+                  result={f.result}
+                  held={f.held}
+                  compact={idx > 0}
+                />
               ))
             )}
           </AnimatePresence>

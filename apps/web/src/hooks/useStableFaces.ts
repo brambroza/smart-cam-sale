@@ -5,10 +5,18 @@ const AGE_ALPHA = 0.25; // smoothing factor for age (lower = smoother)
 const CONF_ALPHA = 0.35;
 const STALE_MS = 3000;
 const PRUNE_INTERVAL_MS = 500;
+const HOLD_MS = 10_000; // freeze recommendations/script for this long
 
 export interface StableFace {
   identityKey: string;
-  result: RecognitionResult;
+  result: RecognitionResult; // live-smoothed values (age, bbox, matchConfidence)
+  held: {
+    suggestedScript: string;
+    recentPurchases: RecognitionResult['recentPurchases'];
+    recommendations: RecognitionResult['recommendations'];
+    member: RecognitionResult['member'];
+    heldSince: number;
+  };
   lastSeenAt: number;
   updatedAt: number;
 }
@@ -72,9 +80,24 @@ export function useStableFaces(last: RecognitionMessage | null) {
           }
         : r;
 
+      // Held recommendation/script: refresh only when identity changed or
+      // hold window elapsed. Otherwise keep the previous held values so staff
+      // has time to read them out to the customer.
+      const holdExpired = prev && now - prev.held.heldSince > HOLD_MS;
+      const held = prev && !holdExpired
+        ? prev.held
+        : {
+            suggestedScript: r.suggestedScript,
+            recentPurchases: r.recentPurchases,
+            recommendations: r.recommendations,
+            member: r.member,
+            heldSince: now,
+          };
+
       map.set(key, {
         identityKey: key,
         result: smoothed,
+        held,
         lastSeenAt: now,
         updatedAt: now,
       });
