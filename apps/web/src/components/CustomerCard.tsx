@@ -3,15 +3,19 @@ import { Crown, Sparkles, User, Users, ShoppingBag, Clock, TrendingUp, UserPlus 
 import type { RecognitionResult } from '@smart-cam/shared-types';
 import { ageBucketLabel, cn, formatThb, relativeTime } from '../lib/utils';
 
-export function CustomerCard({ result }: { result: RecognitionResult }) {
+export function CustomerCard({ result, compact = false }: { result: RecognitionResult; compact?: boolean }) {
   const isMember = result.isMember && result.member;
   return (
     <motion.div
+      layout
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -16 }}
-      transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-      className="glass-strong p-5 shadow-card relative overflow-hidden"
+      transition={{ type: 'spring', stiffness: 220, damping: 28 }}
+      className={cn(
+        'glass-strong shadow-card relative overflow-hidden',
+        compact ? 'p-3' : 'p-5',
+      )}
     >
       <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-gradient-to-br from-violet-500/30 to-cyan-400/20 blur-3xl" />
 
@@ -58,7 +62,7 @@ export function CustomerCard({ result }: { result: RecognitionResult }) {
         </div>
       </div>
 
-      {isMember && (
+      {!compact && isMember && (
         <div className="mt-5 grid grid-cols-3 gap-2">
           <Stat label="แต้มสะสม" value={result.member!.points.toLocaleString()} accent="text-neon-cyan" />
           <Stat label="ยอดซื้อรวม" value={formatThb(result.member!.totalSpend)} accent="text-neon-lime" />
@@ -66,72 +70,86 @@ export function CustomerCard({ result }: { result: RecognitionResult }) {
         </div>
       )}
 
-      <div className="mt-5">
-        <SectionHeader icon={<Sparkles className="w-4 h-4 text-neon-violet" />} title="สคริปต์แนะนำพนักงาน" />
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="mt-2 p-3 rounded-xl border border-violet-400/30 bg-violet-500/10 text-slate-100 leading-relaxed"
-        >
-          <span className="font-medium">"{result.suggestedScript}"</span>
-        </motion.div>
-      </div>
-
-      {result.recentPurchases.length > 0 && (
-        <div className="mt-5">
-          <SectionHeader icon={<Clock className="w-4 h-4 text-neon-cyan" />} title="ประวัติซื้อ" />
-          <ul className="mt-2 space-y-1.5">
-            {result.recentPurchases.slice(0, 3).map((p) => (
-              <li key={p.productId} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg bg-white/[0.03]">
-                <span className="truncate">{p.productName}</span>
-                <span className="text-xs text-slate-400 shrink-0">
-                  {p.totalTimes}× · {relativeTime(p.lastBoughtAt)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="mt-5">
-        <SectionHeader
-          icon={<TrendingUp className="w-4 h-4 text-neon-lime" />}
-          title={isMember ? 'แนะนำสำหรับลูกค้าคนนี้' : 'สินค้ายอดนิยมช่วงนี้'}
-        />
-        <div className="mt-3 grid grid-cols-1 gap-2">
-          {result.recommendations.map((r, i) => (
+      {compact ? (
+        // Compact secondary face — show only top recommendation + script hint
+        result.recommendations[0] && (
+          <div className="mt-3 flex items-center gap-2 text-xs text-slate-300">
+            <TrendingUp className="w-3.5 h-3.5 text-neon-lime shrink-0" />
+            <span className="truncate">
+              แนะ <span className="font-semibold text-slate-100">{result.recommendations[0].name}</span> · {formatThb(result.recommendations[0].price)}
+            </span>
+          </div>
+        )
+      ) : (
+        <>
+          <div className="mt-5">
+            <SectionHeader icon={<Sparkles className="w-4 h-4 text-neon-violet" />} title="สคริปต์แนะนำพนักงาน" />
             <motion.div
-              key={r.productId}
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.05 * i }}
-              className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.1 }}
+              className="mt-2 p-3 rounded-xl border border-violet-400/30 bg-violet-500/10 text-slate-100 leading-relaxed"
             >
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-400/30 to-violet-500/30 grid place-items-center">
-                <ShoppingBag className="w-5 h-5" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold truncate">{r.name}</span>
-                  <span className="text-sm font-mono text-neon-cyan">{formatThb(r.price)}</span>
-                </div>
-                <div className="text-xs text-slate-400 truncate">{r.reason}</div>
-              </div>
-              <ScoreBar score={r.score} />
+              <span className="font-medium">"{result.suggestedScript}"</span>
             </motion.div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {!isMember && (
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="mt-5 w-full btn-primary justify-center py-3 text-base"
-        >
-          <UserPlus className="w-5 h-5" /> ชวนสมัครสมาชิกฟรี · รับส่วนลด 10%
-        </motion.button>
+          {result.recentPurchases.length > 0 && (
+            <div className="mt-5">
+              <SectionHeader icon={<Clock className="w-4 h-4 text-neon-cyan" />} title="ประวัติซื้อ" />
+              <ul className="mt-2 space-y-1.5">
+                {result.recentPurchases.slice(0, 3).map((p) => (
+                  <li key={p.productId} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg bg-white/[0.03]">
+                    <span className="truncate">{p.productName}</span>
+                    <span className="text-xs text-slate-400 shrink-0">
+                      {p.totalTimes}× · {relativeTime(p.lastBoughtAt)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="mt-5">
+            <SectionHeader
+              icon={<TrendingUp className="w-4 h-4 text-neon-lime" />}
+              title={isMember ? 'แนะนำสำหรับลูกค้าคนนี้' : 'สินค้ายอดนิยมช่วงนี้'}
+            />
+            <div className="mt-3 grid grid-cols-1 gap-2">
+              {result.recommendations.map((r, i) => (
+                <motion.div
+                  key={r.productId}
+                  initial={{ opacity: 0, x: 12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.05 * i }}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-br from-white/[0.04] to-transparent border border-white/10"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-cyan-400/30 to-violet-500/30 grid place-items-center">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold truncate">{r.name}</span>
+                      <span className="text-sm font-mono text-neon-cyan">{formatThb(r.price)}</span>
+                    </div>
+                    <div className="text-xs text-slate-400 truncate">{r.reason}</div>
+                  </div>
+                  <ScoreBar score={r.score} />
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          {!isMember && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="mt-5 w-full btn-primary justify-center py-3 text-base"
+            >
+              <UserPlus className="w-5 h-5" /> ชวนสมัครสมาชิกฟรี · รับส่วนลด 10%
+            </motion.button>
+          )}
+        </>
       )}
     </motion.div>
   );

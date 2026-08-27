@@ -1,26 +1,19 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { CameraPanel } from './components/CameraPanel';
 import { CustomerCard } from './components/CustomerCard';
 import { TopBar } from './components/TopBar';
 import { StatsStrip } from './components/StatsStrip';
 import { useCamera } from './hooks/useCamera';
 import { useRecognition } from './hooks/useRecognition';
+import { useStableFaces } from './hooks/useStableFaces';
 import { AnimatePresence } from 'framer-motion';
 import { EmptyState } from './components/EmptyState';
 
 export default function App() {
   const [live, setLive] = useState(true);
   const { videoRef, ready, error: camError } = useCamera(live);
-  const { status, last, error: recError } = useRecognition(videoRef, live, 2);
-  const primaryResult = last?.results[0];
-
-  // Stable identity across frames so AnimatePresence doesn't re-mount on every
-  // recognition tick (which was making the right panel flicker).
-  const identityKey = useMemo(() => {
-    if (!primaryResult) return null;
-    if (primaryResult.isMember && primaryResult.member) return `m:${primaryResult.member.memberId}`;
-    return `guest:${primaryResult.ageBucket}:${primaryResult.gender}`;
-  }, [primaryResult]);
+  const { status, last, error: recError } = useRecognition(videoRef, live, 1);
+  const faces = useStableFaces(last);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -31,18 +24,20 @@ export default function App() {
             videoRef={videoRef}
             ready={ready}
             live={live}
-            faceBoxes={last?.results.map((r) => r.bbox) ?? []}
+            faceBoxes={faces.map((f) => f.result.bbox)}
             processingMs={last?.processingMs}
             error={camError ?? recError}
           />
           <StatsStrip />
         </section>
-        <aside className="flex flex-col gap-4">
-          <AnimatePresence mode="wait">
-            {primaryResult && identityKey ? (
-              <CustomerCard key={identityKey} result={primaryResult} />
-            ) : (
+        <aside className="flex flex-col gap-4 min-h-0">
+          <AnimatePresence mode="popLayout">
+            {faces.length === 0 ? (
               <EmptyState key="empty" live={live} status={status} />
+            ) : (
+              faces.map((f, idx) => (
+                <CustomerCard key={f.identityKey} result={f.result} compact={idx > 0} />
+              ))
             )}
           </AnimatePresence>
         </aside>
