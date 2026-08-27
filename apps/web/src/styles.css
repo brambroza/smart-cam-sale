@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', 'Noto Sans Thai', system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 800px at 20% 0%, rgba(167, 139, 250, 0.18), transparent 60%),
+    radial-gradient(900px 700px at 100% 100%, rgba(34, 211, 238, 0.15), transparent 60%),
+    #050510;
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/[0.03] backdrop-blur-xl border border-white/10 rounded-2xl;
+  }
+  .glass-strong {
+    @apply bg-white/[0.06] backdrop-blur-2xl border border-white/15 rounded-2xl;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl font-semibold
+      bg-gradient-to-br from-violet-500 to-cyan-400 text-ink-950 hover:shadow-glow transition;
+  }
+  .tier-bronze { @apply bg-gradient-to-br from-amber-700 to-yellow-500 text-white; }
+  .tier-silver { @apply bg-gradient-to-br from-slate-400 to-slate-200 text-ink-950; }
+  .tier-gold   { @apply bg-gradient-to-br from-yellow-400 to-amber-500 text-ink-950; }
+  .tier-platinum { @apply bg-gradient-to-br from-cyan-300 via-violet-300 to-fuchsia-300 text-ink-950; }
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.06) 40%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0.06) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 500px 100%;
+  background-repeat: no-repeat;
+  animation: shimmer 2.4s linear infinite;
+}
