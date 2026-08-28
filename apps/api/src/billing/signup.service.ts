@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { EmailService } from '../notify/email.service';
 
 @Injectable()
 export class SignupService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
 
   /** Public lead form on the landing page. Keep validation strict — it's unauthenticated. */
   async create(input: { name?: string; storeName?: string; phone?: string; email?: string; message?: string; website?: string }) {
@@ -21,15 +25,16 @@ export class SignupService {
       where: { phone, createdAt: { gte: since } },
     });
     if (recent >= 3) return { ok: true }; // silently accept — no oracle for spammers
-    await this.prisma.signupRequest.create({
-      data: {
-        name,
-        storeName,
-        phone,
-        email: input.email?.trim().slice(0, 150) || null,
-        message: input.message?.trim().slice(0, 1000) || null,
-      },
-    });
+    const lead = {
+      name,
+      storeName,
+      phone,
+      email: input.email?.trim().slice(0, 150) || null,
+      message: input.message?.trim().slice(0, 1000) || null,
+    };
+    await this.prisma.signupRequest.create({ data: lead });
+    // lead is already saved — the alert mail is best-effort and must not block
+    this.email.sendLeadAlert(lead).catch(() => {});
     return { ok: true };
   }
 

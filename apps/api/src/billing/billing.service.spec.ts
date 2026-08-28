@@ -162,18 +162,31 @@ describe('BillingService.setStatus', () => {
 
 describe('SignupService.create — public form hardening', () => {
   const VALID = { name: 'คุณเอ', storeName: 'ร้านกาแฟ', phone: '0812345678' };
+  const emailStub = () => ({ sendLeadAlert: jest.fn().mockResolvedValue(undefined) });
 
-  it('accepts a valid lead and normalizes the phone', async () => {
+  it('accepts a valid lead, normalizes the phone, and fires the alert email', async () => {
     const prisma = prismaMock();
-    const svc = new SignupService(prisma);
+    const email = emailStub();
+    const svc = new SignupService(prisma, email as never);
     await expect(svc.create({ ...VALID, phone: '081-234-5678' })).resolves.toEqual({ ok: true });
     expect(prisma.signupRequest.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ phone: '0812345678' }) }),
     );
+    expect(email.sendLeadAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'คุณเอ', storeName: 'ร้านกาแฟ', phone: '0812345678' }),
+    );
+  });
+
+  it('a failing alert email never breaks lead capture', async () => {
+    const prisma = prismaMock();
+    const email = { sendLeadAlert: jest.fn().mockRejectedValue(new Error('smtp down')) };
+    const svc = new SignupService(prisma, email as never);
+    await expect(svc.create(VALID)).resolves.toEqual({ ok: true });
+    expect(prisma.signupRequest.create).toHaveBeenCalled();
   });
 
   it('rejects missing fields and bad phones', async () => {
-    const svc = new SignupService(prismaMock());
+    const svc = new SignupService(prismaMock(), emailStub() as never);
     await expect(svc.create({ ...VALID, name: '' })).rejects.toBeInstanceOf(BadRequestException);
     await expect(svc.create({ ...VALID, storeName: 'x' })).rejects.toBeInstanceOf(
       BadRequestException,
@@ -183,12 +196,14 @@ describe('SignupService.create — public form hardening', () => {
     );
   });
 
-  it('silently swallows honeypot hits and per-phone floods without creating rows', async () => {
+  it('silently swallows honeypot hits and per-phone floods — no rows, no emails', async () => {
     const prisma = prismaMock();
-    const svc = new SignupService(prisma);
+    const email = emailStub();
+    const svc = new SignupService(prisma, email as never);
     await expect(svc.create({ ...VALID, website: 'spam.example' })).resolves.toEqual({ ok: true });
     (prisma.signupRequest.count as jest.Mock).mockResolvedValue(3);
     await expect(svc.create(VALID)).resolves.toEqual({ ok: true });
     expect(prisma.signupRequest.create).not.toHaveBeenCalled();
+    expect(email.sendLeadAlert).not.toHaveBeenCalled();
   });
 });
