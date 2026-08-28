@@ -25,4 +25,9 @@ export class OrgsController {
   rotate(@Param('id') id: string) {
     return this.svc.rotateBridgeToken(id);
   }
+
+  @Post(':id/plan')
+  setPlan(@Param('id') id: string, @Body() body: { plan: string }) {
+    return this.svc.setPlan(id, body.plan);
+  }
 }

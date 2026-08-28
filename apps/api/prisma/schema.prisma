@@ -36,6 +36,20 @@ model Organization {
   createdAt   DateTime @default(now())
 }
 
+// Physical branch of an organization. Purchase.storeCode / PosApiKey.storeCode
+// reference Store.code (loose coupling — POS data may arrive before the store
+// row exists).
+model Store {
+  id        String   @id @default(cuid())
+  orgId     String
+  code      String // "BKK-01" — matches storeCode on purchases/POS keys
+  name      String
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, code])
+  @@index([orgId])
+}
+
 model Member {
   id           String         @id @default(cuid())
   orgId        String

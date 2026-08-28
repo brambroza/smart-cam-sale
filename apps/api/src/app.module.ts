@@ -23,6 +23,8 @@ import { PosController } from './pos/pos.controller';
 import { PosService } from './pos/pos.service';
 import { OrgsController } from './orgs/orgs.controller';
 import { OrgsService } from './orgs/orgs.service';
+import { StoresController } from './stores/stores.controller';
+import { StoresService } from './stores/stores.service';
 import { HealthController } from './health.controller';
 import { ClaudeScriptService } from './ai/claude-script.service';
 
@@ -52,6 +54,7 @@ if (!jwtSecret) {
     ConsentController,
     PosController,
     OrgsController,
+    StoresController,
   ],
   providers: [
     PrismaService,
@@ -66,6 +69,7 @@ if (!jwtSecret) {
     AuthService,
     PosService,
     OrgsService,
+    StoresService,
     ClaudeScriptService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],

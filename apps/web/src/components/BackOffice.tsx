@@ -17,22 +17,31 @@ import {
   Loader2,
   ScanFace,
   Search,
+  Building2,
+  Store,
+  RefreshCw,
+  Ban,
+  Play,
 } from 'lucide-react';
 import { apiJson, postJson, API_BASE, getUser } from '../lib/api';
 import { formatThb, cn } from '../lib/utils';
 
-type Tab = 'overview' | 'products' | 'members' | 'staff' | 'pos';
+type Tab = 'overview' | 'products' | 'members' | 'staff' | 'stores' | 'pos' | 'orgs';
 
-const TABS: { key: Tab; label: string; icon: typeof Package }[] = [
+const TABS: { key: Tab; label: string; icon: typeof Package; superadminOnly?: boolean }[] = [
   { key: 'overview', label: 'ภาพรวมขาย', icon: LayoutDashboard },
   { key: 'products', label: 'สินค้า', icon: Package },
   { key: 'members', label: 'สมาชิก', icon: Users },
   { key: 'staff', label: 'พนักงาน', icon: UserCog },
+  { key: 'stores', label: 'สาขา', icon: Store },
   { key: 'pos', label: 'เชื่อม POS', icon: Plug },
+  { key: 'orgs', label: 'องค์กร', icon: Building2, superadminOnly: true },
 ];
 
 export function BackOffice({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>('overview');
+  const isSuperadmin = getUser()?.role === 'superadmin';
+  const tabs = TABS.filter((t) => !t.superadminOnly || isSuperadmin);
 
   return (
     <AnimatePresence>
@@ -55,7 +64,7 @@ export function BackOffice({ open, onClose }: { open: boolean; onClose: () => vo
               <h2 className="font-display font-bold text-lg text-slate-100 mr-4 whitespace-nowrap">
                 🗄️ หลังบ้าน
               </h2>
-              {TABS.map((t) => (
+              {tabs.map((t) => (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
@@ -82,7 +91,9 @@ export function BackOffice({ open, onClose }: { open: boolean; onClose: () => vo
               {tab === 'products' && <ProductsTab />}
               {tab === 'members' && <MembersTab />}
               {tab === 'staff' && <StaffTab />}
+              {tab === 'stores' && <StoresTab />}
               {tab === 'pos' && <PosTab />}
+              {tab === 'orgs' && <OrgsTab />}
             </div>
           </motion.div>
         </motion.div>
@@ -142,10 +153,18 @@ function Input({
 
 interface Summary {
   days: number;
+  store: string | null;
   totalSales: number;
   purchaseCount: number;
+  byStore: { storeCode: string; total: number; count: number }[];
   daily: { day: string; total: number; count: number }[];
   topProducts: { productId: string; name: string; qty: number }[];
+}
+
+interface StoreRow {
+  id: string;
+  code: string;
+  name: string;
 }
 
 interface RecentPurchase {
@@ -160,11 +179,18 @@ interface RecentPurchase {
 function OverviewTab() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<RecentPurchase[]>([]);
+  const [stores, setStores] = useState<StoreRow[]>([]);
+  const [storeFilter, setStoreFilter] = useState('');
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    apiJson<StoreRow[]>('/stores').then(setStores).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const q = storeFilter ? `&store=${encodeURIComponent(storeFilter)}` : '';
     Promise.all([
-      apiJson<Summary>('/purchases/summary?days=7'),
+      apiJson<Summary>(`/purchases/summary?days=7${q}`),
       apiJson<RecentPurchase[]>('/purchases/recent?take=10'),
     ])
       .then(([s, r]) => {
@@ -172,15 +198,33 @@ function OverviewTab() {
         setRecent(r);
       })
       .catch((e) => setErr((e as Error).message));
-  }, []);
+  }, [storeFilter]);
 
   if (err) return <ErrBanner msg={err} />;
   if (!summary) return <Spinner />;
 
   const maxDaily = Math.max(1, ...summary.daily.map((d) => d.total));
+  const nameOfStore = new Map(stores.map((s) => [s.code, s.name]));
 
   return (
     <div className="space-y-5">
+      {stores.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-400">สาขา:</span>
+          <select
+            value={storeFilter}
+            onChange={(e) => setStoreFilter(e.target.value)}
+            className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:border-neon-cyan/50 focus:outline-none"
+          >
+            <option value="" className="bg-ink-900">ทุกสาขา</option>
+            {stores.map((s) => (
+              <option key={s.id} value={s.code} className="bg-ink-900">
+                {s.name} ({s.code})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="ยอดขาย 7 วัน" value={formatThb(summary.totalSales)} />
         <StatCard label="จำนวนบิล" value={String(summary.purchaseCount)} />
@@ -234,6 +278,26 @@ function OverviewTab() {
           </div>
         </div>
       </div>
+
+      {!summary.store && summary.byStore.length > 1 && (
+        <div className="glass p-4">
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
+            ยอดขายแยกสาขา
+          </h3>
+          <div className="space-y-1.5">
+            {summary.byStore.map((s) => (
+              <div key={s.storeCode} className="flex items-center gap-3 text-sm py-1 border-b border-white/5 last:border-0">
+                <span className="flex-1 text-slate-200 truncate">
+                  {nameOfStore.get(s.storeCode) ?? s.storeCode}
+                  <span className="text-slate-500 font-mono text-[11px] ml-2">{s.storeCode}</span>
+                </span>
+                <span className="text-xs text-slate-400">{s.count} บิล</span>
+                <span className="font-mono text-neon-cyan w-24 text-right">{formatThb(s.total)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="glass p-4">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
@@ -953,6 +1017,269 @@ function PosTab() {
               ยังไม่มี key — สร้างอันแรกด้านบนแล้วเอาไปตั้งใน POS ของร้าน
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────── stores ───────────────────────────
+
+function StoresTab() {
+  const [stores, setStores] = useState<StoreRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [form, setForm] = useState({ code: '', name: '' });
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const refresh = () =>
+    apiJson<StoreRow[]>('/stores')
+      .then(setStores)
+      .catch((e) => setErr((e as Error).message))
+      .finally(() => setLoaded(true));
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const create = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await postJson('/stores', form);
+      setForm({ code: '', name: '' });
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rename = async (s: StoreRow) => {
+    const name = window.prompt(`ชื่อใหม่ของสาขา ${s.code}:`, s.name);
+    if (!name) return;
+    try {
+      await postJson(`/stores/${s.id}`, { name }, 'PATCH');
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  const remove = async (s: StoreRow) => {
+    if (!window.confirm(`ลบสาขา "${s.name}"? (ประวัติการขายของสาขานี้ยังอยู่ครบ)`)) return;
+    try {
+      await apiJson(`/stores/${s.id}`, { method: 'DELETE' });
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  return (
+    <div>
+      <ErrBanner msg={err} />
+      <p className="text-xs text-slate-500 mb-4">
+        รหัสสาขา (code) ใช้ผูกกับยอดขายจาก POS และการกรองรายงาน — ตั้งให้ตรงกับ storeCode ของ API key ในแท็บเชื่อม POS
+      </p>
+      <div className="glass p-4 mb-4 border-neon-cyan/20">
+        <div className="grid md:grid-cols-3 gap-3 items-end">
+          <Input label="รหัสสาขา (a-z 0-9 - _) *" value={form.code} onChange={(v) => setForm({ ...form, code: v })} placeholder="BKK-01" />
+          <Input label="ชื่อสาขา *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="สาขาลาดพร้าว" />
+          <button onClick={create} disabled={busy || !form.code || !form.name} className="btn-primary py-2 px-4 text-sm disabled:opacity-40">
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+            เพิ่มสาขา
+          </button>
+        </div>
+      </div>
+      {!loaded ? (
+        <Spinner />
+      ) : (
+        <div className="space-y-1">
+          {stores.map((s) => (
+            <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-xl border bg-white/[0.03] border-white/10 text-sm">
+              <Store className="w-4 h-4 text-slate-500 shrink-0" />
+              <span className="font-mono text-neon-cyan w-24 truncate">{s.code}</span>
+              <span className="flex-1 text-slate-100 truncate">{s.name}</span>
+              <button onClick={() => rename(s)} className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400">
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button onClick={() => remove(s)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-rose-300">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+          {stores.length === 0 && <div className="text-center text-slate-500 py-8 text-sm">ยังไม่มีสาขา</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────── orgs (superadmin) ───────────────────────────
+
+interface OrgRow {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  createdAt: string;
+  memberCount: number;
+  staffCount: number;
+}
+
+const EMPTY_ORG = { name: '', slug: '', adminUsername: '', adminPassword: '' };
+
+function OrgsTab() {
+  const [orgs, setOrgs] = useState<OrgRow[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [form, setForm] = useState({ ...EMPTY_ORG });
+  const [created, setCreated] = useState<{ name: string; bridgeToken: string; adminUsername: string } | null>(null);
+  const [rotated, setRotated] = useState<{ orgId: string; bridgeToken: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const refresh = () =>
+    apiJson<OrgRow[]>('/admin/orgs')
+      .then(setOrgs)
+      .catch((e) => setErr((e as Error).message))
+      .finally(() => setLoaded(true));
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const create = async () => {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await postJson<{ name: string; bridgeToken: string; adminUsername: string }>(
+        '/admin/orgs',
+        form,
+      );
+      setCreated(res);
+      setForm({ ...EMPTY_ORG });
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const togglePlan = async (o: OrgRow) => {
+    const next = o.plan === 'suspended' ? 'pilot' : 'suspended';
+    const verb = next === 'suspended' ? 'ระงับ' : 'เปิดใช้งาน';
+    if (!window.confirm(`${verb}องค์กร "${o.name}"?`)) return;
+    try {
+      await postJson(`/admin/orgs/${o.id}/plan`, { plan: next });
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  const rotate = async (o: OrgRow) => {
+    if (!window.confirm(`ออก bridge token ใหม่ให้ "${o.name}"? token เดิมใช้ไม่ได้ทันที — ต้องอัปเดตที่เครื่อง bridge ของร้าน`)) return;
+    try {
+      const res = await postJson<{ orgId: string; bridgeToken: string }>(
+        `/admin/orgs/${o.id}/rotate-bridge-token`,
+        {},
+      );
+      setRotated(res);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <ErrBanner msg={err} />
+      <div className="glass p-4 border-neon-cyan/20">
+        <h3 className="text-sm font-semibold text-slate-100 mb-3">เปิดองค์กรลูกค้าใหม่</h3>
+        <div className="grid md:grid-cols-4 gap-3">
+          <Input label="ชื่อองค์กร *" value={form.name} onChange={(v) => setForm({ ...form, name: v })} placeholder="ร้านกาแฟบ้านสวน" />
+          <Input label="Slug (a-z 0-9 -) *" value={form.slug} onChange={(v) => setForm({ ...form, slug: v })} placeholder="baansuan" />
+          <Input label="Username admin ร้าน *" value={form.adminUsername} onChange={(v) => setForm({ ...form, adminUsername: v })} />
+          <Input label="รหัสผ่าน admin (8+) *" value={form.adminPassword} onChange={(v) => setForm({ ...form, adminPassword: v })} type="password" />
+        </div>
+        <button
+          onClick={create}
+          disabled={busy || !form.name || !form.slug || !form.adminUsername || form.adminPassword.length < 8}
+          className="btn-primary mt-3 py-2 px-4 text-sm disabled:opacity-40"
+        >
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
+          สร้างองค์กร
+        </button>
+
+        {created && (
+          <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/[0.07] p-3 text-xs">
+            <div className="text-amber-300 font-semibold mb-1.5">
+              ⚠️ สร้าง "{created.name}" แล้ว — ข้อมูลนี้แสดงครั้งเดียว จดส่งให้ร้าน:
+            </div>
+            <div className="text-slate-200">Login: <code className="bg-black/40 px-1.5 rounded">{created.adminUsername}</code> + รหัสที่ตั้งไว้</div>
+            <div className="mt-1 text-slate-200">Bridge token (ใส่ที่เครื่อง bridge ของร้าน):</div>
+            <code className="block mt-1 font-mono text-slate-100 bg-black/40 rounded-lg px-3 py-2 break-all">{created.bridgeToken}</code>
+          </div>
+        )}
+        {rotated && (
+          <div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/[0.07] p-3 text-xs">
+            <div className="text-amber-300 font-semibold mb-1">⚠️ Bridge token ใหม่ (แสดงครั้งเดียว):</div>
+            <code className="block font-mono text-slate-100 bg-black/40 rounded-lg px-3 py-2 break-all">{rotated.bridgeToken}</code>
+          </div>
+        )}
+      </div>
+
+      {!loaded ? (
+        <Spinner />
+      ) : (
+        <div className="space-y-1">
+          {orgs.map((o) => (
+            <div
+              key={o.id}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-xl border text-sm',
+                o.plan === 'suspended'
+                  ? 'bg-rose-500/[0.04] border-rose-400/25 opacity-70'
+                  : 'bg-white/[0.03] border-white/10',
+              )}
+            >
+              <Building2 className="w-4 h-4 text-slate-500 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-slate-100 truncate">{o.name}</div>
+                <div className="text-[11px] text-slate-500 font-mono">{o.slug} · {o.id}</div>
+              </div>
+              <span className="text-[11px] text-slate-400 hidden md:block">
+                สมาชิก {o.memberCount} · พนักงาน {o.staffCount}
+              </span>
+              <span
+                className={cn(
+                  'text-[10px] px-2 py-0.5 rounded-full border',
+                  o.plan === 'suspended'
+                    ? 'text-rose-300 border-rose-400/40'
+                    : 'text-emerald-300 border-emerald-400/40 bg-emerald-500/10',
+                )}
+              >
+                {o.plan}
+              </span>
+              <button onClick={() => rotate(o)} title="ออก bridge token ใหม่" className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400">
+                <RefreshCw className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => togglePlan(o)}
+                title={o.plan === 'suspended' ? 'เปิดใช้งาน' : 'ระงับ'}
+                className={cn(
+                  'p-1.5 rounded-lg',
+                  o.plan === 'suspended'
+                    ? 'hover:bg-emerald-500/20 text-emerald-300'
+                    : 'hover:bg-rose-500/20 text-rose-300',
+                )}
+              >
+                {o.plan === 'suspended' ? <Play className="w-3.5 h-3.5" /> : <Ban className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

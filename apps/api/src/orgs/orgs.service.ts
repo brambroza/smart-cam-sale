@@ -39,11 +39,38 @@ export class OrgsService implements OnModuleInit {
     }
   }
 
-  list() {
-    return this.prisma.organization.findMany({
-      orderBy: { createdAt: 'asc' },
-      select: { id: true, name: true, slug: true, plan: true, createdAt: true },
-    });
+  async list() {
+    const [orgs, memberCounts, staffCounts] = await Promise.all([
+      this.prisma.organization.findMany({
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true, slug: true, plan: true, createdAt: true },
+      }),
+      this.prisma.member.groupBy({ by: ['orgId'], _count: { _all: true } }),
+      this.prisma.staffUser.groupBy({ by: ['orgId'], _count: { _all: true } }),
+    ]);
+    const members = new Map(memberCounts.map((r) => [r.orgId, r._count._all]));
+    const staff = new Map(staffCounts.map((r) => [r.orgId, r._count._all]));
+    return orgs.map((o) => ({
+      ...o,
+      memberCount: members.get(o.id) ?? 0,
+      staffCount: staff.get(o.id) ?? 0,
+    }));
+  }
+
+  /** Suspend cuts off logins, bridges, and POS ingestion for the whole org. */
+  async setPlan(orgId: string, plan: string) {
+    if (!['pilot', 'standard', 'suspended'].includes(plan)) {
+      throw new BadRequestException('plan ต้องเป็น pilot | standard | suspended');
+    }
+    if (orgId === DEFAULT_ORG_ID && plan === 'suspended') {
+      throw new BadRequestException('ระงับองค์กร default ไม่ได้ (บัญชี superadmin อยู่ในนี้)');
+    }
+    await this.prisma.organization
+      .update({ where: { id: orgId }, data: { plan } })
+      .catch(() => {
+        throw new NotFoundException('ไม่พบองค์กรนี้');
+      });
+    return { ok: true, orgId, plan };
   }
 
   /** Create an org + its first admin in one shot. Credentials are returned once. */

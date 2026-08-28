@@ -22,7 +22,11 @@ export class PurchasesController {
   }
 
   @Get('summary')
-  summary(@Req() req: AuthedRequest, @Query('days') days?: string) {
-    return this.svc.summary(req.user.orgId, Number(days) || 7);
+  summary(
+    @Req() req: AuthedRequest,
+    @Query('days') days?: string,
+    @Query('store') store?: string,
+  ) {
+    return this.svc.summary(req.user.orgId, Number(days) || 7, store || undefined);
   }
 }

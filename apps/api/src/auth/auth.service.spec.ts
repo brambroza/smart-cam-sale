@@ -16,6 +16,9 @@ const ADMIN = {
 
 function prismaMock(overrides: Partial<Record<string, unknown>> = {}) {
   return {
+    organization: {
+      findUnique: jest.fn().mockResolvedValue({ plan: 'pilot' }),
+    },
     staffUser: {
       count: jest.fn().mockResolvedValue(1),
       findUnique: jest.fn().mockResolvedValue(ADMIN),
@@ -55,6 +58,25 @@ describe('AuthService.login', () => {
     (prisma.staffUser.findUnique as jest.Mock).mockResolvedValue(null);
     const svc2 = new AuthService(prisma, jwt);
     await expect(svc2.login('ghost', 'x')).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('locks out staff of a suspended org (superadmin exempt)', async () => {
+    const prisma = prismaMock();
+    (prisma as any).organization.findUnique.mockResolvedValue({ plan: 'suspended' });
+    const svc = new AuthService(prisma, jwt);
+    await expect(svc.login('admin', 'correct-password')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+
+    // superadmin still logs in even when their org row says suspended
+    const prisma2 = prismaMock({
+      findUnique: jest.fn().mockResolvedValue({ ...ADMIN, role: 'superadmin' }),
+    });
+    (prisma2 as any).organization.findUnique.mockResolvedValue({ plan: 'suspended' });
+    const svc2 = new AuthService(prisma2, jwt);
+    await expect(svc2.login('admin', 'correct-password')).resolves.toMatchObject({
+      user: expect.objectContaining({ role: 'superadmin' }),
+    });
   });
 
   it('rejects a forged token', async () => {

@@ -81,12 +81,12 @@ export class PurchasesService {
     };
   }
 
-  /** Back-office overview: totals per day + best sellers over the window. */
-  async summary(orgId: string, days = 7) {
+  /** Back-office overview: totals per day + best sellers, optional per-store filter. */
+  async summary(orgId: string, days = 7, store?: string) {
     const since = new Date(Date.now() - Math.min(Math.max(days, 1), 90) * 24 * 3600 * 1000);
     const purchases = await this.prisma.purchase.findMany({
-      where: { orgId, boughtAt: { gte: since } },
-      select: { total: true, boughtAt: true },
+      where: { orgId, boughtAt: { gte: since }, ...(store ? { storeCode: store } : {}) },
+      select: { total: true, boughtAt: true, storeCode: true },
     });
     const byDay = new Map<string, { total: number; count: number }>();
     for (const p of purchases) {
@@ -96,9 +96,19 @@ export class PurchasesService {
       row.count += 1;
       byDay.set(day, row);
     }
+    const byStore = new Map<string, { total: number; count: number }>();
+    for (const p of purchases) {
+      const row = byStore.get(p.storeCode) ?? { total: 0, count: 0 };
+      row.total += p.total;
+      row.count += 1;
+      byStore.set(p.storeCode, row);
+    }
+
     const topItems = await this.prisma.purchaseItem.groupBy({
       by: ['productId'],
-      where: { purchase: { orgId, boughtAt: { gte: since } } },
+      where: {
+        purchase: { orgId, boughtAt: { gte: since }, ...(store ? { storeCode: store } : {}) },
+      },
       _sum: { qty: true },
       orderBy: { _sum: { qty: 'desc' } },
       take: 5,
@@ -110,8 +120,12 @@ export class PurchasesService {
     const nameOf = new Map(products.map((p) => [p.id, p.name]));
     return {
       days,
+      store: store ?? null,
       totalSales: purchases.reduce((s, p) => s + p.total, 0),
       purchaseCount: purchases.length,
+      byStore: Array.from(byStore.entries())
+        .map(([code, v]) => ({ storeCode: code, ...v }))
+        .sort((a, b) => b.total - a.total),
       daily: Array.from(byDay.entries())
         .map(([day, v]) => ({ day, ...v }))
         .sort((a, b) => a.day.localeCompare(b.day)),
