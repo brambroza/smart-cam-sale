@@ -1,0 +1,53 @@
+name: Uptime monitor
+
+# Free monitoring: hits /health/deep every 15 minutes. If anything is down the
+# job fails and GitHub emails the repo owner (Settings → Notifications →
+# Actions must be on, which is the default).
+#
+# NOTE: scheduled workflows only run from the DEFAULT branch — this activates
+# once the branch is merged. Until then use "Run workflow" to test.
+#
+# Repo variables (Settings → Secrets and variables → Actions → Variables):
+#   MONITOR_API_URL  — override API base URL (default below)
+#   MONITOR_WEB_URL  — optional; web console URL to check too
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: uptime-monitor
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: API deep health (DB + AI service)
+        run: |
+          URL="${{ vars.MONITOR_API_URL || 'https://smart-cam-api.icygrass-3d32430d.southeastasia.azurecontainerapps.io' }}"
+          echo "checking $URL/health/deep"
+          # retry once after 30s — a single cold-start blip should not page anyone
+          for attempt in 1 2; do
+            body=$(curl -sS --max-time 30 -w '\n%{http_code}' "$URL/health/deep") && code="${body##*$'\n'}" || code=000
+            echo "attempt $attempt → HTTP $code"
+            echo "$body" | head -n1
+            [ "$code" = "200" ] && exit 0
+            [ "$attempt" = "1" ] && sleep 30
+          done
+          echo "::error::API deep health failed (HTTP $code) — ดู log ด้านบนว่า component ไหนล่ม (db/ai)"
+          exit 1
+
+      - name: Web console
+        if: ${{ vars.MONITOR_WEB_URL != '' }}
+        run: |
+          URL="${{ vars.MONITOR_WEB_URL }}"
+          echo "checking $URL"
+          code=$(curl -sS -o /dev/null --max-time 30 -w '%{http_code}' "$URL") || code=000
+          echo "HTTP $code"
+          case "$code" in
+            2*|3*) exit 0 ;;
+            *) echo "::error::Web console down (HTTP $code)"; exit 1 ;;
+          esac
