@@ -18,7 +18,12 @@ export class HealthController {
   @Public()
   @Get()
   health() {
-    return { status: 'ok', ts: new Date().toISOString() };
+    return {
+      status: 'ok',
+      ts: new Date().toISOString(),
+      // surfaces which build is live — set by the deploy pipeline
+      version: process.env.APP_VERSION ?? 'dev',
+    };
   }
 
   /**

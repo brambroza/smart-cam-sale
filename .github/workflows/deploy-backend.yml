@@ -120,7 +120,8 @@ jobs:
         run: |
           az containerapp update \
             -n "$AZURE_API_APP" -g "$AZURE_RG" \
-            --image "${{ needs.build-push.outputs.api_tag }}"
+            --image "${{ needs.build-push.outputs.api_tag }}" \
+            --set-env-vars "APP_VERSION=${GITHUB_SHA::7}"
           az containerapp ingress update \
             -n "$AZURE_API_APP" -g "$AZURE_RG" --target-port 3000 || true
 
