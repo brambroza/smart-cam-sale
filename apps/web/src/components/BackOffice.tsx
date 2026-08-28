@@ -1319,6 +1319,18 @@ interface InvoiceRow {
   org?: { name: string; slug: string } | null;
 }
 
+interface Roi {
+  period: string;
+  method: string;
+  recognitions: number;
+  assisted: { count: number; total: number; avgTicket: number };
+  unassisted: { count: number; total: number; avgTicket: number };
+  upliftPerBill: number | null;
+  estimatedUpliftTotal: number;
+  subscriptionCost: number;
+  roiMultiple: number | null;
+}
+
 interface LeadRow {
   id: string;
   name: string;
@@ -1339,6 +1351,7 @@ const INV_STATUS: Record<string, string> = {
 
 function BillingTab({ superadmin }: { superadmin: boolean }) {
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [roi, setRoi] = useState<Roi | null>(null);
   const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
@@ -1350,6 +1363,7 @@ function BillingTab({ superadmin }: { superadmin: boolean }) {
 
   const refresh = () => {
     apiJson<Usage>('/billing/usage').then(setUsage).catch(() => {});
+    apiJson<Roi>('/billing/roi').then(setRoi).catch(() => {});
     if (superadmin) {
       apiJson<InvoiceRow[]>('/admin/billing/invoices').then(setInvoices).catch((e) => setErr((e as Error).message));
       apiJson<LeadRow[]>('/admin/signups').then(setLeads).catch(() => {});
@@ -1401,9 +1415,67 @@ function BillingTab({ superadmin }: { superadmin: boolean }) {
     }
   };
 
+  const roiPct =
+    roi && roi.upliftPerBill !== null && roi.unassisted.avgTicket > 0
+      ? Math.round((roi.upliftPerBill / roi.unassisted.avgTicket) * 100)
+      : null;
+  const maxAvg = roi ? Math.max(roi.assisted.avgTicket, roi.unassisted.avgTicket, 1) : 1;
+
   return (
     <div className="space-y-5">
       <ErrBanner msg={err} />
+
+      {roi && (
+        <div className="glass p-4 border-lime-400/25">
+          <h3 className="text-xs font-semibold text-neon-lime uppercase tracking-wide mb-3">
+            📈 ผลตอบแทนจากระบบ (ROI) — {roi.period}
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <StatCard label={`ยอดขายที่ระบบมีส่วนช่วย (${roi.assisted.count} บิล)`} value={formatThb(roi.assisted.total)} />
+            <StatCard
+              label="ยอดส่วนเพิ่มโดยประมาณ"
+              value={roi.upliftPerBill !== null ? formatThb(roi.estimatedUpliftTotal) : '—'}
+            />
+            <StatCard
+              label={`เทียบค่าบริการ ${formatThb(roi.subscriptionCost)}`}
+              value={roi.roiMultiple !== null && roi.estimatedUpliftTotal > 0 ? `คุ้ม ${roi.roiMultiple.toFixed(1)}×` : '—'}
+            />
+            <StatCard label="ครั้งที่ระบบจำลูกค้าได้" value={roi.recognitions.toLocaleString()} />
+          </div>
+
+          {(roi.assisted.count > 0 || roi.unassisted.count > 0) && (
+            <div className="space-y-2 mb-2">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-56 shrink-0 text-slate-300">บิลหลังระบบจำลูกค้าได้ (เฉลี่ย)</span>
+                <div className="flex-1 h-4 rounded bg-white/[0.04] overflow-hidden">
+                  <div className="h-full rounded bg-gradient-to-r from-lime-400/80 to-emerald-400/80" style={{ width: `${(roi.assisted.avgTicket / maxAvg) * 100}%` }} />
+                </div>
+                <span className="font-mono text-neon-lime w-24 text-right shrink-0">
+                  {roi.assisted.count > 0 ? formatThb(roi.assisted.avgTicket) : '—'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-56 shrink-0 text-slate-400">บิลสมาชิกอื่น ๆ (เฉลี่ย)</span>
+                <div className="flex-1 h-4 rounded bg-white/[0.04] overflow-hidden">
+                  <div className="h-full rounded bg-slate-500/60" style={{ width: `${(roi.unassisted.avgTicket / maxAvg) * 100}%` }} />
+                </div>
+                <span className="font-mono text-slate-300 w-24 text-right shrink-0">
+                  {roi.unassisted.count > 0 ? formatThb(roi.unassisted.avgTicket) : '—'}
+                </span>
+              </div>
+              {roiPct !== null && (
+                <div className={cn('text-xs font-semibold', roiPct >= 0 ? 'text-neon-lime' : 'text-amber-300')}>
+                  {roiPct >= 0 ? `▲ บิลที่ระบบช่วย สูงกว่าเฉลี่ย ${roiPct}%` : `▼ ต่ำกว่าเฉลี่ย ${Math.abs(roiPct)}% — ข้อมูลยังน้อย รอสะสมเพิ่ม`}
+                </div>
+              )}
+            </div>
+          )}
+          {roi.assisted.count === 0 && roi.unassisted.count === 0 && (
+            <div className="text-sm text-slate-500 py-2">ยังไม่มีบิลเดือนนี้ — ตัวเลขจะเริ่มสะสมเมื่อมีการขายจริง</div>
+          )}
+          <p className="text-[11px] text-slate-500 mt-2">{roi.method}</p>
+        </div>
+      )}
 
       {usage && (
         <div>

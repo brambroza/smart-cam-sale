@@ -43,6 +43,7 @@ function prismaMock() {
         Promise.resolve({ id: 'pur1', ...data }),
       ),
     },
+    visitLog: { findFirst: jest.fn().mockResolvedValue(null) },
     $transaction: jest.fn().mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops)),
   } as unknown as PrismaService;
 }
@@ -133,6 +134,20 @@ describe('PosService.recordSale', () => {
     await expect(
       svc.recordSale({ memberId: 'm1', items: [{ barcode: KNOWN.sku, qty: 0 }] }, 'main', 'org1'),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('ROI attribution: POS bill is marked assisted after a recent recognition', async () => {
+    const prisma = prismaMock();
+    (prisma.visitLog.findFirst as jest.Mock).mockResolvedValue({ id: 'v1' });
+    const svc = new PosService(prisma);
+    await svc.recordSale(
+      { memberId: 'm1', items: [{ barcode: KNOWN.sku, qty: 1 }] },
+      'main',
+      'org1',
+    );
+    expect(prisma.purchase.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ assisted: true }) }),
+    );
   });
 
   it('TENANT ISOLATION: a valid member phone from another org is not matched', async () => {

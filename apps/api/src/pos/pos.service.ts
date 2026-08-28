@@ -7,6 +7,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma.service';
 import { sha256Hex } from '../common/crypto.util';
+import { wasAssisted } from '../common/attribution';
 
 export interface PosSaleItem {
   barcode?: string; // matched against Product.sku
@@ -155,12 +156,14 @@ export class PosService {
 
     const total = resolved.reduce((s, r) => s + r.price * r.qty, 0);
     const pointsEarned = Math.floor(total / THB_PER_POINT);
+    const assisted = await wasAssisted(this.prisma, orgId, member.id);
 
     const [purchase, updatedMember] = await this.prisma.$transaction([
       this.prisma.purchase.create({
         data: {
           orgId,
           memberId: member.id,
+          assisted,
           total,
           storeCode,
           items: { create: resolved },

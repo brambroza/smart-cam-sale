@@ -141,6 +141,8 @@ model Purchase {
   id         String         @id @default(cuid())
   orgId      String
   memberId   String
+  // true = บิลเกิดภายในหน้าต่าง attribution หลังระบบจำสมาชิกคนนี้ได้ (ROI dashboard)
+  assisted   Boolean        @default(false)
   member     Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
   total      Float
   boughtAt   DateTime       @default(now())

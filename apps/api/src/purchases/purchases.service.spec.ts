@@ -19,6 +19,7 @@ function prismaMock() {
       ),
     },
     product: { findMany: jest.fn().mockResolvedValue(PRODUCTS) },
+    visitLog: { findFirst: jest.fn().mockResolvedValue(null) },
     purchase: {
       create: jest.fn().mockImplementation(({ data }) =>
         Promise.resolve({
@@ -83,6 +84,27 @@ describe('PurchasesService.record', () => {
     await expect(
       svc.record({ memberId: 'ghost', items: [{ productId: 'p1', qty: 1 }] }, 'org1'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('ROI attribution: marks the bill assisted when the member was recognized recently', async () => {
+    const prisma = prismaMock();
+    (prisma.visitLog.findFirst as jest.Mock).mockResolvedValue({ id: 'v1' });
+    const svc = new PurchasesService(prisma);
+    const res = await svc.record({ memberId: 'm1', items: [{ productId: 'p1', qty: 1 }] }, 'org1');
+    expect(res.assisted).toBe(true);
+    expect(prisma.purchase.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ assisted: true }) }),
+    );
+    // the attribution query itself must stay org+member scoped with a time window
+    const q = (prisma.visitLog.findFirst as jest.Mock).mock.calls[0][0];
+    expect(q.where).toMatchObject({ orgId: 'org1', memberId: 'm1', matchedFace: true });
+    expect(q.where.visitedAt.gte).toBeInstanceOf(Date);
+  });
+
+  it('ROI attribution: bill stays unassisted without a recent recognition', async () => {
+    const svc = new PurchasesService(prismaMock());
+    const res = await svc.record({ memberId: 'm1', items: [{ productId: 'p1', qty: 1 }] }, 'org1');
+    expect(res.assisted).toBe(false);
   });
 
   it('TENANT ISOLATION: a member of another org is invisible', async () => {

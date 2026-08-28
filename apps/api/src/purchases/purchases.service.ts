@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { wasAssisted } from '../common/attribution';
 
 export interface PurchaseItemInput {
   productId: string;
@@ -43,12 +44,14 @@ export class PurchasesService {
       0,
     );
     const pointsEarned = Math.floor(total / THB_PER_POINT);
+    const assisted = await wasAssisted(this.prisma, orgId, input.memberId);
 
     const [purchase, updatedMember] = await this.prisma.$transaction([
       this.prisma.purchase.create({
         data: {
           orgId,
           memberId: input.memberId,
+          assisted,
           total,
           storeCode: input.storeCode ?? 'main',
           items: {
@@ -69,6 +72,7 @@ export class PurchasesService {
 
     return {
       purchaseId: purchase.id,
+      assisted,
       total,
       pointsEarned,
       newPointsBalance: updatedMember.points,

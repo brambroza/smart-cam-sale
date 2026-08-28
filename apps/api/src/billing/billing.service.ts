@@ -57,6 +57,63 @@ export class BillingService {
     };
   }
 
+  /**
+   * The renewal number: compares bills that happened right after the system
+   * recognized the member ("assisted") against other member bills. Honest by
+   * design — this is correlation, and the response says so via `method`.
+   */
+  async roi(orgId: string, period: string) {
+    const { start, end } = parsePeriod(period);
+    const range = { orgId, boughtAt: { gte: start, lt: end } };
+    const [assisted, unassisted, matchedVisits, org, storeCount] = await Promise.all([
+      this.prisma.purchase.aggregate({
+        where: { ...range, assisted: true },
+        _count: { _all: true },
+        _sum: { total: true },
+        _avg: { total: true },
+      }),
+      this.prisma.purchase.aggregate({
+        where: { ...range, assisted: false },
+        _count: { _all: true },
+        _sum: { total: true },
+        _avg: { total: true },
+      }),
+      this.prisma.visitLog.count({
+        where: { orgId, matchedFace: true, visitedAt: { gte: start, lt: end } },
+      }),
+      this.prisma.organization.findUnique({
+        where: { id: orgId },
+        select: { pricePerStore: true },
+      }),
+      this.prisma.store.count({ where: { orgId } }),
+    ]);
+    if (!org) throw new NotFoundException('ไม่พบองค์กร');
+
+    const aCount = assisted._count._all;
+    const uCount = unassisted._count._all;
+    const aAvg = assisted._avg.total ?? 0;
+    const uAvg = unassisted._avg.total ?? 0;
+    // uplift is only meaningful when both sides have data
+    const upliftPerBill = aCount > 0 && uCount > 0 ? aAvg - uAvg : null;
+    const estimatedUpliftTotal =
+      upliftPerBill !== null && upliftPerBill > 0 ? upliftPerBill * aCount : 0;
+    const subscriptionCost = Math.max(storeCount, 1) * org.pricePerStore;
+
+    return {
+      orgId,
+      period,
+      method:
+        'เทียบบิลสมาชิกที่เกิดภายใน 15 นาทีหลังระบบจำลูกค้าได้ กับบิลสมาชิกอื่น — เป็นการเปรียบเทียบเชิงสัมพันธ์ ไม่ใช่การทดลองควบคุม',
+      recognitions: matchedVisits,
+      assisted: { count: aCount, total: assisted._sum.total ?? 0, avgTicket: aAvg },
+      unassisted: { count: uCount, total: unassisted._sum.total ?? 0, avgTicket: uAvg },
+      upliftPerBill,
+      estimatedUpliftTotal,
+      subscriptionCost,
+      roiMultiple: subscriptionCost > 0 ? estimatedUpliftTotal / subscriptionCost : null,
+    };
+  }
+
   /** Create the month's invoice: billable stores × the org's negotiated rate. */
   async generateInvoice(orgId: string, period: string, overrideAmount?: number, note?: string) {
     const u = await this.usage(orgId, period);

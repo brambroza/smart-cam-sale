@@ -17,7 +17,13 @@ function prismaMock() {
     member: { count: jest.fn().mockResolvedValue(42) },
     visitLog: { count: jest.fn().mockResolvedValue(1200) },
     purchase: {
-      aggregate: jest.fn().mockResolvedValue({ _count: { _all: 210 }, _sum: { total: 15500 } }),
+      aggregate: jest.fn().mockImplementation(({ where }: any) => {
+        if (where.assisted === true)
+          return Promise.resolve({ _count: { _all: 40 }, _sum: { total: 4800 }, _avg: { total: 120 } });
+        if (where.assisted === false)
+          return Promise.resolve({ _count: { _all: 170 }, _sum: { total: 15300 }, _avg: { total: 90 } });
+        return Promise.resolve({ _count: { _all: 210 }, _sum: { total: 15500 }, _avg: { total: 95 } });
+      }),
     },
     invoice: {
       findFirst: jest.fn().mockResolvedValue(null),
@@ -88,6 +94,50 @@ describe('BillingService.usage + generateInvoice', () => {
     const inv = await svc.generateInvoice('org1', '2026-08', 999, 'ส่วนลดเปิดตัว');
     expect(inv.amount).toBe(999);
     expect(inv.note).toBe('ส่วนลดเปิดตัว');
+  });
+});
+
+describe('BillingService.roi', () => {
+  it('computes uplift from assisted vs unassisted average tickets', async () => {
+    const svc = new BillingService(prismaMock());
+    const r = await svc.roi('org1', '2026-08');
+    expect(r.assisted).toEqual({ count: 40, total: 4800, avgTicket: 120 });
+    expect(r.unassisted.avgTicket).toBe(90);
+    expect(r.upliftPerBill).toBe(30); // 120 - 90
+    expect(r.estimatedUpliftTotal).toBe(1200); // 30 × 40 บิล
+    expect(r.subscriptionCost).toBe(7500); // 3 สาขา × 2500
+    expect(r.roiMultiple).toBeCloseTo(1200 / 7500);
+    expect(r.method).toContain('15 นาที');
+  });
+
+  it('reports null uplift (never a fake number) when either side has no bills', async () => {
+    const prisma = prismaMock();
+    (prisma.purchase.aggregate as jest.Mock).mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where.assisted === true
+          ? { _count: { _all: 0 }, _sum: { total: null }, _avg: { total: null } }
+          : { _count: { _all: 170 }, _sum: { total: 15300 }, _avg: { total: 90 } },
+      ),
+    );
+    const svc = new BillingService(prisma);
+    const r = await svc.roi('org1', '2026-08');
+    expect(r.upliftPerBill).toBeNull();
+    expect(r.estimatedUpliftTotal).toBe(0);
+  });
+
+  it('clamps negative uplift to zero impact instead of claiming negative revenue', async () => {
+    const prisma = prismaMock();
+    (prisma.purchase.aggregate as jest.Mock).mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where.assisted === true
+          ? { _count: { _all: 10 }, _sum: { total: 500 }, _avg: { total: 50 } }
+          : { _count: { _all: 100 }, _sum: { total: 9000 }, _avg: { total: 90 } },
+      ),
+    );
+    const svc = new BillingService(prisma);
+    const r = await svc.roi('org1', '2026-08');
+    expect(r.upliftPerBill).toBe(-40); // แสดงความจริง
+    expect(r.estimatedUpliftTotal).toBe(0); // แต่ไม่อ้างรายได้ติดลบ
   });
 });
 

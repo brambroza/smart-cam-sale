@@ -39,6 +39,18 @@ export class BillingController {
     return this.billing.listForOrg(req.user.orgId);
   }
 
+  @AdminOnly()
+  @Get('billing/roi')
+  myRoi(@Req() req: AuthedRequest, @Query('period') period?: string) {
+    return this.billing.roi(req.user.orgId, period || currentPeriod());
+  }
+
+  @SuperadminOnly()
+  @Get('admin/billing/roi/:orgId')
+  orgRoi(@Param('orgId') orgId: string, @Query('period') period?: string) {
+    return this.billing.roi(orgId, period || currentPeriod());
+  }
+
   // ── superadmin: platform billing ──
 
   @SuperadminOnly()
