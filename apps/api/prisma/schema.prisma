@@ -59,6 +59,7 @@ model Product {
   id          String     @id @default(cuid())
   name        String
   category    String
+  sku         String?    @unique // barcode/SKU — key used to match items from POS
   price       Float
   imageUrl    String?
   targetGender Gender    @default(unknown)
@@ -93,6 +94,18 @@ model PurchaseItem {
   price      Float
 
   @@index([productId])
+}
+
+// Integration key for a store's existing POS. The raw key is shown once at
+// creation; only its sha256 lands in the DB.
+model PosApiKey {
+  id         String    @id @default(cuid())
+  name       String // e.g. "POS สาขาลาดพร้าว"
+  keyHash    String    @unique
+  storeCode  String    @default("main")
+  enabled    Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
 }
 
 model StaffUser {

@@ -55,6 +55,25 @@ export async function apiFetch(path: string, init: RequestInit = {}): Promise<Re
   return res;
 }
 
+/** apiFetch + JSON parse; throws with the server's Thai message on non-2xx. */
+export async function apiJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await apiFetch(path, init);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string | string[] } | null;
+    const msg = Array.isArray(body?.message) ? body?.message.join(', ') : body?.message;
+    throw new Error(msg ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export function postJson<T>(path: string, data: unknown, method = 'POST'): Promise<T> {
+  return apiJson<T>(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+}
+
 export async function login(username: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',

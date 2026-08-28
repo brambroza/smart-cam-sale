@@ -15,7 +15,17 @@ export class MembersService {
     return this.prisma.member.findMany({
       take,
       orderBy: { memberSince: 'desc' },
-      select: { id: true, displayName: true, tier: true, points: true, gender: true },
+      select: {
+        id: true,
+        fullName: true,
+        displayName: true,
+        phone: true,
+        tier: true,
+        points: true,
+        gender: true,
+        memberSince: true,
+        faceOptIn: true,
+      },
     });
   }
 

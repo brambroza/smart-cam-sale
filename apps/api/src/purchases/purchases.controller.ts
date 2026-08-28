@@ -14,4 +14,9 @@ export class PurchasesController {
   recent(@Query('take') take?: string) {
     return this.svc.recent(Number(take) || 20);
   }
+
+  @Get('summary')
+  summary(@Query('days') days?: string) {
+    return this.svc.summary(Number(days) || 7);
+  }
 }

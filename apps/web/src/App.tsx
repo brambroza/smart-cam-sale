@@ -12,10 +12,11 @@ import { EmptyState } from './components/EmptyState';
 import { EnrollModal } from './components/EnrollModal';
 import { ProductBrowser } from './components/ProductBrowser';
 import { CameraManager } from './components/CameraManager';
+import { BackOffice } from './components/BackOffice';
 import { SaleModal } from './components/SaleModal';
 import { LoginGate } from './components/LoginGate';
 import { getToken, clearAuth, getUser } from './lib/api';
-import { PackageOpen, UserPlus, Webcam, Video, Settings2, ShoppingCart, LogOut } from 'lucide-react';
+import { PackageOpen, UserPlus, Webcam, Video, Settings2, ShoppingCart, LogOut, Archive } from 'lucide-react';
 import { cn } from './lib/utils';
 
 type CamSource = 'webcam' | 'bridge';
@@ -42,6 +43,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [camMgrOpen, setCamMgrOpen] = useState(false);
+  const [backOfficeOpen, setBackOfficeOpen] = useState(false);
   const [saleOpen, setSaleOpen] = useState(false);
   const [source, setSource] = useState<CamSource>(() => loadPref('cam_source', 'webcam'));
   const [channel, setChannel] = useState<string>(() => loadPref('cam_channel', 'store-main'));
@@ -137,6 +139,16 @@ function Console({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setBackOfficeOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-violet-500/10 text-violet-300 border-violet-400/30 hover:border-violet-400/60 transition"
+              title="จัดการสินค้า สมาชิก พนักงาน และเชื่อม POS"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              หลังบ้าน
+            </button>
+          )}
           <button
             onClick={() => setCamMgrOpen(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white/[0.03] text-slate-400 border-white/10 hover:border-white/25 hover:text-slate-200 transition"
@@ -238,6 +250,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
         guessAge={guestPrimary?.result.estimatedAge}
       />
       <ProductBrowser open={browserOpen} onClose={() => setBrowserOpen(false)} />
+      <BackOffice open={backOfficeOpen} onClose={() => setBackOfficeOpen(false)} />
       <SaleModal open={saleOpen} onClose={() => setSaleOpen(false)} member={memberPrimary} />
       <CameraManager
         open={camMgrOpen}

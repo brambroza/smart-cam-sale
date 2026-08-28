@@ -69,4 +69,66 @@ export class AuthService implements OnModuleInit {
   async verifyToken(token: string): Promise<JwtPayload> {
     return this.jwt.verifyAsync<JwtPayload>(token);
   }
+
+  // ── staff management (admin only, enforced at controller) ──
+
+  listUsers() {
+    return this.prisma.staffUser.findMany({
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, username: true, displayName: true, role: true, createdAt: true },
+    });
+  }
+
+  async createUser(input: {
+    username: string;
+    password: string;
+    displayName: string;
+    role?: string;
+  }) {
+    const username = input.username?.trim().toLowerCase();
+    if (!username || !/^[a-z0-9_.-]{3,32}$/.test(username)) {
+      throw new UnauthorizedException('username ต้องเป็น a-z 0-9 _ . - ยาว 3-32 ตัว');
+    }
+    if (!input.password || input.password.length < 8) {
+      throw new UnauthorizedException('รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร');
+    }
+    const exists = await this.prisma.staffUser.findUnique({ where: { username } });
+    if (exists) throw new UnauthorizedException('username นี้ถูกใช้แล้ว');
+    const user = await this.prisma.staffUser.create({
+      data: {
+        username,
+        passwordHash: await bcrypt.hash(input.password, 10),
+        displayName: input.displayName?.trim() || username,
+        role: input.role === 'admin' ? 'admin' : 'staff',
+      },
+      select: { id: true, username: true, displayName: true, role: true, createdAt: true },
+    });
+    return user;
+  }
+
+  /** Admin reset of another user's password (no current-password check). */
+  async resetPassword(userId: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 8) {
+      throw new UnauthorizedException('รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร');
+    }
+    await this.prisma.staffUser.update({
+      where: { id: userId },
+      data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+    });
+    return { ok: true };
+  }
+
+  async deleteUser(userId: string, requesterId: string) {
+    if (userId === requesterId) {
+      throw new UnauthorizedException('ลบบัญชีตัวเองไม่ได้');
+    }
+    const admins = await this.prisma.staffUser.count({ where: { role: 'admin' } });
+    const target = await this.prisma.staffUser.findUnique({ where: { id: userId } });
+    if (!target) throw new UnauthorizedException('ไม่พบบัญชีนี้');
+    if (target.role === 'admin' && admins <= 1) {
+      throw new UnauthorizedException('ต้องเหลือ admin อย่างน้อย 1 บัญชี');
+    }
+    await this.prisma.staffUser.delete({ where: { id: userId } });
+    return { ok: true };
+  }
 }

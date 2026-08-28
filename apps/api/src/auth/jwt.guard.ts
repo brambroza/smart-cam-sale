@@ -1,7 +1,14 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuthService } from './auth.service';
+import { AuthService, JwtPayload } from './auth.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
+import { ADMIN_ONLY_KEY } from './admin.decorator';
 
 /** Global HTTP guard — every REST route requires a Bearer JWT unless @Public(). */
 @Injectable()
@@ -27,11 +34,21 @@ export class JwtAuthGuard implements CanActivate {
     const header = req.headers['authorization'];
     const token = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
     if (!token) throw new UnauthorizedException('ต้องเข้าสู่ระบบก่อน');
+    let payload: JwtPayload;
     try {
-      req.user = await this.auth.verifyToken(token);
-      return true;
+      payload = await this.auth.verifyToken(token);
     } catch {
       throw new UnauthorizedException('token ไม่ถูกต้องหรือหมดอายุ');
     }
+    req.user = payload;
+
+    const adminOnly = this.reflector.getAllAndOverride<boolean>(ADMIN_ONLY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (adminOnly && payload.role !== 'admin') {
+      throw new ForbiddenException('เฉพาะผู้ดูแลระบบ (admin) เท่านั้น');
+    }
+    return true;
   }
 }

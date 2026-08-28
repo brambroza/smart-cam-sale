@@ -73,6 +73,48 @@ export class PurchasesService {
     };
   }
 
+  /** Back-office overview: totals per day + best sellers over the window. */
+  async summary(days = 7) {
+    const since = new Date(Date.now() - Math.min(Math.max(days, 1), 90) * 24 * 3600 * 1000);
+    const purchases = await this.prisma.purchase.findMany({
+      where: { boughtAt: { gte: since } },
+      select: { total: true, boughtAt: true },
+    });
+    const byDay = new Map<string, { total: number; count: number }>();
+    for (const p of purchases) {
+      const day = p.boughtAt.toISOString().slice(0, 10);
+      const row = byDay.get(day) ?? { total: 0, count: 0 };
+      row.total += p.total;
+      row.count += 1;
+      byDay.set(day, row);
+    }
+    const topItems = await this.prisma.purchaseItem.groupBy({
+      by: ['productId'],
+      where: { purchase: { boughtAt: { gte: since } } },
+      _sum: { qty: true },
+      orderBy: { _sum: { qty: 'desc' } },
+      take: 5,
+    });
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: topItems.map((t) => t.productId) } },
+      select: { id: true, name: true },
+    });
+    const nameOf = new Map(products.map((p) => [p.id, p.name]));
+    return {
+      days,
+      totalSales: purchases.reduce((s, p) => s + p.total, 0),
+      purchaseCount: purchases.length,
+      daily: Array.from(byDay.entries())
+        .map(([day, v]) => ({ day, ...v }))
+        .sort((a, b) => a.day.localeCompare(b.day)),
+      topProducts: topItems.map((t) => ({
+        productId: t.productId,
+        name: nameOf.get(t.productId) ?? t.productId,
+        qty: t._sum.qty ?? 0,
+      })),
+    };
+  }
+
   recent(take = 20) {
     return this.prisma.purchase.findMany({
       orderBy: { boughtAt: 'desc' },
