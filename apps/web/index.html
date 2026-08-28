@@ -101,7 +101,8 @@
     --slate-5: #4b5768;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { scroll-behavior: smooth; }
+  /* scroll-padding: anchor jumps (#how, #pricing, …) land BELOW the fixed bar */
+  html { scroll-behavior: smooth; scroll-padding-top: 88px; }
   body {
     background: var(--ink-950);
     color: var(--slate-1);
@@ -132,8 +133,9 @@
   /* ── nav ── */
   nav {
     position: fixed; top: 0; left: 0; right: 0; z-index: 50;
-    backdrop-filter: blur(16px); background: rgba(5,8,15,.78);
-    border-bottom: 1px solid rgba(255,255,255,.07);
+    backdrop-filter: blur(16px); background: rgba(5,8,15,.95);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 10px 34px rgba(0,0,0,.45);
   }
   .nav-inner {
     max-width: 1120px; margin: 0 auto; padding: 13px 24px;
@@ -271,7 +273,7 @@
   }
 
   /* ── sections ── */
-  section { padding: 92px 0; position: relative; }
+  section { padding: 92px 0; position: relative; scroll-margin-top: 72px; }
   section.alt {
     background: linear-gradient(180deg, transparent, rgba(139,92,246,.045) 18%, rgba(34,211,238,.03) 82%, transparent);
   }
