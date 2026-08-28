@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ป้ายประกาศ PDPA หน้าร้าน — Smart Cam Sale</title>
+<meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@700;800&family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #e9edf3; font-family: 'IBM Plex Sans Thai', system-ui, sans-serif; color: #14202e; }
+
+  /* toolbar (ไม่ถูกพิมพ์) */
+  .toolbar {
+    max-width: 210mm; margin: 0 auto; padding: 18px 16px 6px;
+    display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  }
+  .toolbar .tip { font-size: 13.5px; color: #46586d; line-height: 1.6; flex: 1; min-width: 260px; }
+  .btn-print {
+    border: 0; cursor: pointer; font: inherit; font-weight: 700; font-size: 15px;
+    background: linear-gradient(135deg, #8b5cf6, #22d3ee); color: #04121b;
+    padding: 12px 26px; border-radius: 999px;
+  }
+  [contenteditable] { outline: 2px dashed rgba(139,92,246,.5); outline-offset: 2px; border-radius: 4px; min-width: 60px; display: inline-block; }
+  [contenteditable]:focus { outline-color: #22d3ee; background: rgba(34,211,238,.06); }
+
+  /* A4 sheet */
+  .sheet {
+    width: 210mm; min-height: 296mm; margin: 14px auto; background: #fff;
+    box-shadow: 0 10px 40px rgba(10,20,40,.18); padding: 16mm 15mm;
+    display: flex; flex-direction: column; page-break-after: always;
+  }
+  .sheet:last-of-type { page-break-after: auto; }
+
+  .band { height: 7mm; border-radius: 4mm; background: linear-gradient(90deg, #8b5cf6, #22d3ee); }
+  .head { display: flex; align-items: center; gap: 12px; margin: 10mm 0 6mm; }
+  .cam-ic { width: 22mm; height: 22mm; border-radius: 6mm; background: linear-gradient(135deg, #8b5cf6, #22d3ee); display: grid; place-items: center; font-size: 12mm; flex: none; }
+  h1 { font-family: 'Sora', 'IBM Plex Sans Thai', sans-serif; font-size: 10.2mm; line-height: 1.25; letter-spacing: -.3px; }
+  h1 small { display: block; font-size: 4.6mm; color: #55677c; font-weight: 600; margin-top: 1.5mm; font-family: 'IBM Plex Sans Thai', sans-serif; }
+  .store-line { font-size: 5mm; margin: 2mm 0 6mm; color: #2a394b; }
+
+  .points { display: grid; gap: 4.5mm; margin-top: 2mm; }
+  .pt { display: flex; gap: 5mm; align-items: flex-start; }
+  .pt .ic { width: 11mm; height: 11mm; flex: none; border-radius: 3.5mm; background: #eef1ff; border: 1px solid #d7dcf5; display: grid; place-items: center; font-size: 6mm; }
+  .pt b { display: block; font-size: 5.1mm; }
+  .pt p { font-size: 4.3mm; color: #46586d; line-height: 1.55; margin-top: .5mm; }
+
+  .law {
+    margin-top: auto; border-top: 1.5px solid #dbe2ec; padding-top: 5mm;
+    display: flex; gap: 8mm; align-items: center;
+  }
+  .law .txt { flex: 1; font-size: 3.8mm; color: #55677c; line-height: 1.6; }
+  .qr-box {
+    width: 26mm; height: 26mm; border: 2px dashed #b6c2d4; border-radius: 3mm; flex: none;
+    display: grid; place-items: center; text-align: center; font-size: 3.1mm; color: #8a99ac; padding: 2mm;
+  }
+
+  /* sheet 2 — counter card (พิมพ์ 2 ใบ/หน้า) */
+  .half-wrap { display: grid; gap: 8mm; }
+  .half {
+    border: 2px solid #dbe2ec; border-radius: 6mm; padding: 9mm 10mm;
+    display: flex; flex-direction: column; gap: 3.5mm; min-height: 120mm;
+  }
+  .half h2 { font-family: 'Sora', 'IBM Plex Sans Thai', sans-serif; font-size: 7mm; display: flex; gap: 4mm; align-items: center; }
+  .half h2 .em { font-size: 8mm; }
+  .half p { font-size: 4.4mm; color: #2a394b; line-height: 1.7; }
+  .half .fine { font-size: 3.7mm; color: #55677c; margin-top: auto; border-top: 1px solid #e4e9f1; padding-top: 3mm; }
+  .cutline { text-align: center; color: #9fb0c3; font-size: 3.6mm; letter-spacing: 2px; }
+
+  @media print {
+    body { background: #fff; }
+    .toolbar { display: none; }
+    .sheet { margin: 0; box-shadow: none; width: auto; min-height: auto; }
+    [contenteditable] { outline: none; }
+  }
+  @page { size: A4; margin: 0; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <div class="tip">
+    🖨️ <b>วิธีใช้:</b> คลิกที่ <u>ชื่อร้านและเบอร์โทร (กรอบเส้นประ)</u> เพื่อพิมพ์ข้อมูลร้านของคุณก่อน แล้วกดปุ่มพิมพ์ —
+    หน้าแรกคือป้ายใหญ่ติดทางเข้าร้าน (ตามหน้าที่แจ้งเตือน ม.23) หน้าที่สองเป็นการ์ด 2 ใบสำหรับติดจุดคิดเงิน/จุดสมัครสมาชิก
+  </div>
+  <button class="btn-print" onclick="window.print()">🖨️ พิมพ์ (A4)</button>
+</div>
+
+<!-- ═══ หน้า 1: ป้ายใหญ่ทางเข้าร้าน ═══ -->
+<section class="sheet">
+  <div class="band"></div>
+  <div class="head">
+    <div class="cam-ic">📷</div>
+    <h1>บริเวณนี้ใช้ระบบกล้องอัจฉริยะ<br />ช่วยดูแลและบริการลูกค้า
+      <small>ประกาศการประมวลผลข้อมูลส่วนบุคคล ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</small>
+    </h1>
+  </div>
+  <div class="store-line">ผู้ควบคุมข้อมูล: <b contenteditable="true">ชื่อร้าน / บริษัทของคุณ</b> · โทร <b contenteditable="true">0x-xxx-xxxx</b></div>
+
+  <div class="points">
+    <div class="pt"><div class="ic">👤</div><div>
+      <b>ระบบจดจำเฉพาะสมาชิกที่ให้ความยินยอมไว้แล้วเท่านั้น</b>
+      <p>สมาชิกที่สมัครและให้ความยินยอมโดยชัดแจ้ง ระบบจะจดจำใบหน้าเพื่อทักทาย มอบแต้มสะสม และแนะนำสินค้าที่เหมาะกับท่าน</p>
+    </div></div>
+    <div class="pt"><div class="ic">🚫</div><div>
+      <b>ไม่บันทึกภาพถ่ายหรือวิดีโอของท่าน</b>
+      <p>ระบบเก็บเพียง "รหัสตัวเลขที่แปลงจากใบหน้า" ซึ่งแปลงกลับเป็นภาพไม่ได้ — ภาพจากกล้องถูกประมวลผลชั่วขณะแล้วทิ้งทันที</p>
+    </div></div>
+    <div class="pt"><div class="ic">🕶️</div><div>
+      <b>ลูกค้าทั่วไปไม่ถูกระบุตัวตน</b>
+      <p>ผู้ที่ไม่ได้เป็นสมาชิก ระบบประเมินเพียงช่วงวัยและเพศโดยประมาณเพื่อสถิติจำนวนผู้เข้าร้าน โดยไม่เก็บข้อมูลที่ระบุตัวบุคคลใด ๆ</p>
+    </div></div>
+    <div class="pt"><div class="ic">✋</div><div>
+      <b>ถอนความยินยอมและขอลบข้อมูลได้ทุกเมื่อ</b>
+      <p>แจ้งพนักงานได้ทันทีที่หน้าร้าน — ระบบลบข้อมูลใบหน้าของท่านทันที โดยไม่มีค่าใช้จ่ายและไม่กระทบสิทธิสมาชิกด้านอื่น</p>
+    </div></div>
+  </div>
+
+  <div class="law">
+    <div class="txt">
+      อ่านนโยบายความเป็นส่วนตัวฉบับเต็มและสิทธิของท่านตาม PDPA ได้จาก QR หรือสอบถามพนักงาน ·
+      ผู้ให้บริการระบบ: Smart Cam Sale โทร 085-608-3298 ·
+      ร้องเรียน: สำนักงานคณะกรรมการคุ้มครองข้อมูลส่วนบุคคล (www.pdpc.or.th)
+    </div>
+    <div class="qr-box">ติด QR<br />ลิงก์ไปหน้า<br />นโยบายความเป็นส่วนตัว</div>
+  </div>
+</section>
+
+<!-- ═══ หน้า 2: การ์ดจุดคิดเงิน / จุดสมัครสมาชิก (ตัดครึ่ง) ═══ -->
+<section class="sheet">
+  <div class="half-wrap">
+    <div class="half">
+      <h2><span class="em">💳</span> จุดนี้มีระบบสะสมแต้มอัจฉริยะ</h2>
+      <p>สมัครสมาชิกวันนี้ <b>รับ 100 แต้ม + ส่วนลด 10% ทันที</b> —
+      เมื่อให้ความยินยอมบันทึกใบหน้า ครั้งหน้าเดินเข้าร้านระบบจะทักทายและแนะนำเมนูโปรดของคุณโดยอัตโนมัติ ไม่ต้องบอกเบอร์โทรอีก</p>
+      <p>✅ เก็บเฉพาะรหัสตัวเลขจากใบหน้า ไม่เก็บรูปภาพ<br />✅ ถอนความยินยอม/ลบข้อมูลได้ทุกเมื่อ ฟรี<br />✅ ไม่สมัครก็ซื้อของได้ตามปกติทุกประการ</p>
+      <div class="fine">ผู้ควบคุมข้อมูล: <b contenteditable="true">ชื่อร้านของคุณ</b> · ระบบโดย Smart Cam Sale (085-608-3298) · ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</div>
+    </div>
+    <div class="cutline">✂️ — — — — — — — — — — — — — — — — — — — — — — — — — — — — —</div>
+    <div class="half">
+      <h2><span class="em">💳</span> จุดนี้มีระบบสะสมแต้มอัจฉริยะ</h2>
+      <p>สมัครสมาชิกวันนี้ <b>รับ 100 แต้ม + ส่วนลด 10% ทันที</b> —
+      เมื่อให้ความยินยอมบันทึกใบหน้า ครั้งหน้าเดินเข้าร้านระบบจะทักทายและแนะนำเมนูโปรดของคุณโดยอัตโนมัติ ไม่ต้องบอกเบอร์โทรอีก</p>
+      <p>✅ เก็บเฉพาะรหัสตัวเลขจากใบหน้า ไม่เก็บรูปภาพ<br />✅ ถอนความยินยอม/ลบข้อมูลได้ทุกเมื่อ ฟรี<br />✅ ไม่สมัครก็ซื้อของได้ตามปกติทุกประการ</p>
+      <div class="fine">ผู้ควบคุมข้อมูล: <b contenteditable="true">ชื่อร้านของคุณ</b> · ระบบโดย Smart Cam Sale (085-608-3298) · ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
