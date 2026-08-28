@@ -1,0 +1,13 @@
+{
+  "routes": [
+    { "route": "/app", "rewrite": "/app.html" },
+    { "route": "/landing.html", "redirect": "/", "statusCode": 301 }
+  ],
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": ["/assets/*", "/app.html", "/robots.txt", "/llms.txt", "/staticwebapp.config.json"]
+  },
+  "mimeTypes": {
+    ".txt": "text/plain; charset=utf-8"
+  }
+}
