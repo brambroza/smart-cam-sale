@@ -14,9 +14,16 @@ interface Props {
   guessAge?: number;
 }
 
+interface ConsentPolicy {
+  version: string;
+  text: string;
+}
+
 export function EnrollModal({ open, onClose, socket, channel, guessGender, guessAge }: Props) {
   const [step, setStep] = useState<'capture' | 'form' | 'saving' | 'done' | 'error'>('capture');
   const [embedding, setEmbedding] = useState<number[] | null>(null);
+  const [policy, setPolicy] = useState<ConsentPolicy | null>(null);
+  const [consented, setConsented] = useState(false);
   const [form, setForm] = useState({
     fullName: '',
     displayName: '',
@@ -31,7 +38,12 @@ export function EnrollModal({ open, onClose, socket, channel, guessGender, guess
       setStep('capture');
       setEmbedding(null);
       setError(null);
+      setConsented(false);
     } else {
+      apiFetch('/consent/policy')
+        .then((r) => r.json())
+        .then(setPolicy)
+        .catch(() => setPolicy(null));
       // pre-fill guesses when opening
       setForm((f) => ({
         ...f,
@@ -78,6 +90,11 @@ export function EnrollModal({ open, onClose, socket, channel, guessGender, guess
       setStep('error');
       return;
     }
+    if (!consented || !policy) {
+      setError('ต้องให้ลูกค้าอ่านและติ๊กยินยอมก่อนสมัคร');
+      setStep('error');
+      return;
+    }
     setStep('saving');
     try {
       const body = {
@@ -87,6 +104,8 @@ export function EnrollModal({ open, onClose, socket, channel, guessGender, guess
         birthYear: form.birthYear ? Number(form.birthYear) : undefined,
         phone: form.phone.trim() || undefined,
         embedding,
+        consentAccepted: true,
+        consentVersion: policy.version,
       };
       const res = await apiFetch('/members/enroll', {
         method: 'POST',
@@ -179,9 +198,40 @@ export function EnrollModal({ open, onClose, socket, channel, guessGender, guess
                     />
                   </div>
                   <Field label="เบอร์โทร (ไม่บังคับ)" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+
+                  {/* PDPA consent — text must be shown verbatim; version is sent as evidence */}
+                  <div className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.06] p-3">
+                    <div className="text-[11px] font-semibold text-amber-300 uppercase tracking-wide mb-1.5">
+                      ความยินยอมข้อมูลชีวภาพ (PDPA)
+                    </div>
+                    {policy ? (
+                      <>
+                        <div className="max-h-28 overflow-y-auto text-[11px] leading-relaxed text-slate-300 whitespace-pre-line pr-1">
+                          {policy.text}
+                        </div>
+                        <label className="mt-2 flex items-start gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={consented}
+                            onChange={(e) => setConsented(e.target.checked)}
+                            className="mt-0.5 accent-amber-400"
+                          />
+                          <span className="text-xs text-slate-200">
+                            ลูกค้าอ่าน/รับฟังข้อความข้างต้นแล้ว และยินยอมด้วยวาจาต่อหน้าพนักงาน
+                            <span className="text-slate-500"> (เวอร์ชัน {policy.version})</span>
+                          </span>
+                        </label>
+                      </>
+                    ) : (
+                      <div className="text-xs text-rose-300">
+                        โหลดข้อความยินยอมไม่สำเร็จ — ต้องมีข้อความนี้ก่อนจึงสมัครได้ ลองปิด/เปิดหน้าต่างใหม่
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     onClick={submit}
-                    disabled={!form.fullName || !form.displayName}
+                    disabled={!form.fullName || !form.displayName || !consented || !policy}
                     className="btn-primary w-full mt-4 py-3 justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     ยืนยันสมัครสมาชิก

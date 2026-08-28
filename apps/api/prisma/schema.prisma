@@ -40,6 +40,7 @@ model Member {
   faceOptIn    Boolean        @default(false)
   purchases    Purchase[]
   faceEmbeddings FaceEmbedding[]
+  consents     ConsentRecord[]
 
   @@index([tier])
 }
@@ -111,7 +112,7 @@ model Camera {
   host       String   // IP or hostname (LAN)
   port       Int      @default(554)
   username   String   @default("admin")
-  password   String   // NOTE: stored plaintext for MVP — only ever sent to the bridge
+  password   String   // AES-256-GCM (`enc:v1:` prefix) — decrypted only for the bridge endpoint
   streamPath String?  // resolved from brand profile, or custom for generic
   quality    String   @default("sub") // main | sub
   channel    String   @unique // ws channel viewers subscribe to
@@ -120,6 +121,24 @@ model Camera {
   createdAt  DateTime @default(now())
 
   @@index([bridgeId, enabled])
+}
+
+// PDPA evidence trail for biometric consent (มาตรา 26). memberId is SetNull on
+// member deletion so the record that consent was withdrawn survives erasure.
+model ConsentRecord {
+  id            String   @id @default(cuid())
+  memberId      String?
+  member        Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  action        String   // granted | withdrawn
+  purpose       String   @default("face_recognition")
+  policyVersion String
+  policyHash    String?  // sha256 of the exact consent text shown
+  method        String   @default("enroll_console")
+  staffUserId   String?
+  staffUsername String?  // who witnessed/recorded the consent
+  createdAt     DateTime @default(now())
+
+  @@index([memberId, createdAt])
 }
 
 model VisitLog {
