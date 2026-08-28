@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, ShoppingBag, PackageOpen } from 'lucide-react';
 import { formatThb } from '../lib/utils';
+import { apiFetch } from '../lib/api';
 
 interface Product {
   id: string;
@@ -16,8 +17,6 @@ interface Props {
   open: boolean;
   onClose: () => void;
 }
-
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 const CATEGORY_LABELS: Record<string, string> = {
   coffee: '☕ กาแฟ',
@@ -46,7 +45,7 @@ export function ProductBrowser({ open, onClose }: Props) {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (category) params.set('category', category);
-    fetch(`${API_BASE}/products?${params.toString()}`)
+    apiFetch(`/products?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => setProducts(data))
       .catch(() => setProducts([]))

@@ -94,6 +94,15 @@ model PurchaseItem {
   @@index([productId])
 }
 
+model StaffUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  displayName  String
+  role         String   @default("staff") // staff | admin
+  createdAt    DateTime @default(now())
+}
+
 model Camera {
   id         String   @id @default(cuid())
   name       String

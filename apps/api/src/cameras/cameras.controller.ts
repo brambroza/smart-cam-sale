@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { CamerasService, CameraInput } from './cameras.service';
+import { Public } from '../auth/public.decorator';
 
 @Controller('cameras')
 export class CamerasController {
@@ -40,7 +41,8 @@ export class CamerasController {
     return this.svc.remove(id);
   }
 
-  /** Bridge agents pull their camera list (with credentials) here. */
+  /** Bridge agents pull their camera list (with credentials) here — guarded by BRIDGE_TOKEN, not JWT. */
+  @Public()
   @Get('bridge/:bridgeId')
   bridgeConfig(
     @Param('bridgeId') bridgeId: string,

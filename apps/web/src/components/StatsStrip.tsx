@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Users, UserCheck, UserX, Store } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 interface Stats {
   totalMembers: number;
@@ -8,14 +9,12 @@ interface Stats {
   guestVisits24h: number;
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
-
 export function StatsStrip() {
   const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
     const fetchStats = () =>
-      fetch(`${API_BASE}/members/stats`)
+      apiFetch('/members/stats')
         .then((r) => r.json())
         .then(setStats)
         .catch(() => {});

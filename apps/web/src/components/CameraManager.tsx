@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Video, Plus, Trash2, Pencil, Loader2, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+import { apiFetch } from '../lib/api';
 
 interface BrandProfile {
   brand: string;
@@ -59,7 +58,7 @@ export function CameraManager({ open, onClose, onUseChannel }: Props) {
   const [apiError, setApiError] = useState<string | null>(null);
 
   const refresh = () =>
-    fetch(`${API_BASE}/cameras`)
+    apiFetch('/cameras')
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -70,7 +69,7 @@ export function CameraManager({ open, onClose, onUseChannel }: Props) {
   useEffect(() => {
     if (!open) return;
     setApiError(null);
-    fetch(`${API_BASE}/cameras/profiles`)
+    apiFetch('/cameras/profiles')
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -138,7 +137,7 @@ export function CameraManager({ open, onClose, onUseChannel }: Props) {
       if (form.password) body.password = form.password;
       if (!editId && !form.password) throw new Error('ต้องกรอกรหัสผ่านกล้อง');
 
-      const res = await fetch(editId ? `${API_BASE}/cameras/${editId}` : `${API_BASE}/cameras`, {
+      const res = await apiFetch(editId ? `/cameras/${editId}` : '/cameras', {
         method: editId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -158,12 +157,12 @@ export function CameraManager({ open, onClose, onUseChannel }: Props) {
 
   const remove = async (id: string) => {
     if (!confirm('ลบกล้องนี้?')) return;
-    await fetch(`${API_BASE}/cameras/${id}`, { method: 'DELETE' }).catch(() => {});
+    await apiFetch(`/cameras/${id}`, { method: 'DELETE' }).catch(() => {});
     refresh();
   };
 
   const toggleEnabled = async (cam: Camera) => {
-    await fetch(`${API_BASE}/cameras/${cam.id}`, {
+    await apiFetch(`/cameras/${cam.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: !cam.enabled }),

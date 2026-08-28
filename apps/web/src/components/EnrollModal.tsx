@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserPlus, X, Loader2, CheckCircle2, AlertCircle, Camera } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
+import { apiFetch } from '../lib/api';
 
 interface Props {
   open: boolean;
@@ -12,8 +13,6 @@ interface Props {
   guessGender?: 'male' | 'female' | 'unknown';
   guessAge?: number;
 }
-
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 export function EnrollModal({ open, onClose, socket, channel, guessGender, guessAge }: Props) {
   const [step, setStep] = useState<'capture' | 'form' | 'saving' | 'done' | 'error'>('capture');
@@ -89,7 +88,7 @@ export function EnrollModal({ open, onClose, socket, channel, guessGender, guess
         phone: form.phone.trim() || undefined,
         embedding,
       };
-      const res = await fetch(`${API_BASE}/members/enroll`, {
+      const res = await apiFetch('/members/enroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

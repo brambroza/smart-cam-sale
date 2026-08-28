@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { getToken } from '../lib/api';
 import type { RecognitionMessage } from '@smart-cam/shared-types';
 
 const WS_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? '/';
@@ -23,7 +24,11 @@ export function useRecognition(
   useEffect(() => {
     if (!enabled) return;
     setStatus('connecting');
-    const s = io(WS_URL, { path: '/ws', transports: ['websocket'] });
+    const s = io(WS_URL, {
+      path: '/ws',
+      transports: ['websocket'],
+      auth: { token: getToken() },
+    });
     socketRef.current = s;
     setSocket(s);
     s.on('connect', () => setStatus('connected'));

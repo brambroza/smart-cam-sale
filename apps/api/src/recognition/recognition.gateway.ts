@@ -8,6 +8,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { RecognitionService } from './recognition.service';
+import { AuthService } from '../auth/auth.service';
 import type { FrameMessage } from '@smart-cam/shared-types';
 
 interface BridgeFrameMessage extends FrameMessage {
@@ -24,10 +25,45 @@ export class RecognitionGateway {
 
   @WebSocketServer() server!: Server;
 
-  constructor(private readonly svc: RecognitionService) {}
+  constructor(
+    private readonly svc: RecognitionService,
+    private readonly auth: AuthService,
+  ) {}
 
-  handleConnection(client: Socket) {
-    this.logger.log(`socket connect: ${client.id}`);
+  async handleConnection(client: Socket) {
+    // Two identities may connect: staff consoles (JWT) and camera bridges
+    // (shared BRIDGE_TOKEN). Anything else is dropped before it can send
+    // frames, join channels, or receive member data.
+    const { token, bridgeToken } = (client.handshake.auth ?? {}) as {
+      token?: string;
+      bridgeToken?: string;
+    };
+
+    if (token) {
+      try {
+        const payload = await this.auth.verifyToken(token);
+        (client.data as Record<string, unknown>).user = payload;
+        this.logger.log(`socket connect (staff:${payload.username}): ${client.id}`);
+        return;
+      } catch {
+        this.logger.warn(`socket rejected — invalid JWT: ${client.id}`);
+        client.disconnect(true);
+        return;
+      }
+    }
+
+    const required = process.env.BRIDGE_TOKEN;
+    if (bridgeToken && required && bridgeToken === required) {
+      (client.data as Record<string, unknown>).isBridge = true;
+      this.logger.log(`socket connect (bridge): ${client.id}`);
+      return;
+    }
+
+    this.logger.warn(
+      `socket rejected — no credentials: ${client.id}` +
+        (bridgeToken && !required ? ' (bridge token sent but BRIDGE_TOKEN env not set)' : ''),
+    );
+    client.disconnect(true);
   }
   handleDisconnect(client: Socket) {
     this.busy.delete(client.id);

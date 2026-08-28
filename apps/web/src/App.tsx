@@ -12,7 +12,10 @@ import { EmptyState } from './components/EmptyState';
 import { EnrollModal } from './components/EnrollModal';
 import { ProductBrowser } from './components/ProductBrowser';
 import { CameraManager } from './components/CameraManager';
-import { PackageOpen, UserPlus, Webcam, Video, Settings2 } from 'lucide-react';
+import { SaleModal } from './components/SaleModal';
+import { LoginGate } from './components/LoginGate';
+import { getToken, clearAuth, getUser } from './lib/api';
+import { PackageOpen, UserPlus, Webcam, Video, Settings2, ShoppingCart, LogOut } from 'lucide-react';
 import { cn } from './lib/utils';
 
 type CamSource = 'webcam' | 'bridge';
@@ -27,10 +30,19 @@ function loadPref<T>(key: string, fallback: T): T {
 }
 
 export default function App() {
+  const [authed, setAuthed] = useState(() => !!getToken());
+  if (!authed) {
+    return <LoginGate onLoggedIn={() => setAuthed(true)} />;
+  }
+  return <Console onLogout={() => { clearAuth(); setAuthed(false); }} />;
+}
+
+function Console({ onLogout }: { onLogout: () => void }) {
   const [live, setLive] = useState(true);
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
   const [camMgrOpen, setCamMgrOpen] = useState(false);
+  const [saleOpen, setSaleOpen] = useState(false);
   const [source, setSource] = useState<CamSource>(() => loadPref('cam_source', 'webcam'));
   const [channel, setChannel] = useState<string>(() => loadPref('cam_channel', 'store-main'));
   const [deviceId, setDeviceId] = useState<string | null>(() => loadPref('cam_device', null));
@@ -60,6 +72,9 @@ export default function App() {
   const faces = useStableFaces(last);
   const primary = faces[0];
   const guestPrimary = primary && !primary.result.isMember ? primary : undefined;
+  const memberPrimary =
+    primary && primary.result.isMember ? (primary.held.member ?? primary.result.member ?? null) : null;
+  const user = getUser();
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -121,14 +136,24 @@ export default function App() {
             </span>
           </div>
         )}
-        <button
-          onClick={() => setCamMgrOpen(true)}
-          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white/[0.03] text-slate-400 border-white/10 hover:border-white/25 hover:text-slate-200 transition"
-          title="เพิ่ม/แก้ไขกล้อง IP"
-        >
-          <Settings2 className="w-3.5 h-3.5" />
-          จัดการกล้อง
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setCamMgrOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white/[0.03] text-slate-400 border-white/10 hover:border-white/25 hover:text-slate-200 transition"
+            title="เพิ่ม/แก้ไขกล้อง IP"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            จัดการกล้อง
+          </button>
+          <button
+            onClick={onLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white/[0.03] text-slate-400 border-white/10 hover:border-rose-400/40 hover:text-rose-200 transition"
+            title={user ? `ออกจากระบบ (${user.displayName})` : 'ออกจากระบบ'}
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            {user?.displayName ?? 'ออกจากระบบ'}
+          </button>
+        </div>
       </div>
 
       <main className="flex-1 grid gap-4 p-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
@@ -189,6 +214,21 @@ export default function App() {
         </motion.button>
       )}
 
+      {memberPrimary && (
+        <motion.button
+          onClick={() => setSaleOpen(true)}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 10 }}
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          className="fixed bottom-6 left-6 z-30 flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-gradient-to-br from-lime-400 to-emerald-400 text-ink-950 font-bold shadow-glow"
+        >
+          <ShoppingCart className="w-5 h-5" />
+          <span>บันทึกการขาย · {memberPrimary.displayName}</span>
+        </motion.button>
+      )}
+
       <EnrollModal
         open={enrollOpen}
         onClose={() => setEnrollOpen(false)}
@@ -198,6 +238,7 @@ export default function App() {
         guessAge={guestPrimary?.result.estimatedAge}
       />
       <ProductBrowser open={browserOpen} onClose={() => setBrowserOpen(false)} />
+      <SaleModal open={saleOpen} onClose={() => setSaleOpen(false)} member={memberPrimary} />
       <CameraManager
         open={camMgrOpen}
         onClose={() => setCamMgrOpen(false)}

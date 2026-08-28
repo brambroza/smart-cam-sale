@@ -55,7 +55,11 @@ const EOI = Buffer.from([0xff, 0xd9]);
 /** channel -> { ffmpeg process, rtspUrl, busy } */
 const workers = new Map();
 
-const socket = io(API_URL, { path: '/ws', transports: ['websocket'] });
+const socket = io(API_URL, {
+  path: '/ws',
+  transports: ['websocket'],
+  auth: { bridgeToken: BRIDGE_TOKEN },
+});
 let connected = false;
 
 socket.on('connect', () => {
@@ -65,6 +69,9 @@ socket.on('connect', () => {
 socket.on('disconnect', () => {
   connected = false;
   console.log('✖ API disconnected — reconnecting…');
+});
+socket.on('connect_error', (e) => {
+  console.error(`connect error: ${e.message}${BRIDGE_TOKEN ? '' : ' (ยังไม่ได้ตั้ง BRIDGE_TOKEN — API ที่เปิด auth จะปฏิเสธการเชื่อมต่อ)'}`);
 });
 socket.on('recognition', (msg) => {
   // frameId carries the channel — mark that worker free
