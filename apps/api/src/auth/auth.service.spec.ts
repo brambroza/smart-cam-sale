@@ -102,6 +102,31 @@ describe('AuthService.login', () => {
   });
 });
 
+describe('AuthService — public demo account protection', () => {
+  it('the demo account cannot change its own password (next visitor must get in)', async () => {
+    const prisma = prismaMock({
+      findUnique: jest.fn().mockResolvedValue({ ...ADMIN, username: 'demo' }),
+    });
+    const svc = new AuthService(prisma, jwt);
+    await expect(svc.changePassword('u1', 'correct-password', 'long-enough')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('other admins cannot reset or delete the demo account', async () => {
+    const prisma = prismaMock({
+      findFirst: jest.fn().mockResolvedValue({ ...ADMIN, username: 'demo' }),
+    });
+    const svc = new AuthService(prisma, jwt);
+    await expect(svc.resetPassword('u1', 'long-enough', 'org1')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(svc.deleteUser('u1', 'someone-else', 'org1')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+});
+
 describe('AuthService.changePassword', () => {
   it('requires the correct current password and >=8 chars for the new one', async () => {
     const svc = new AuthService(prismaMock(), jwt);

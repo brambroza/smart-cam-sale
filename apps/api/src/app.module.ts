@@ -32,6 +32,7 @@ import { SignupService } from './billing/signup.service';
 import { HealthController } from './health.controller';
 import { ClaudeScriptService } from './ai/claude-script.service';
 import { EmailService } from './notify/email.service';
+import { DemoService } from './demo/demo.service';
 
 const jwtSecret = process.env.JWT_SECRET;
 if (!jwtSecret) {
@@ -81,6 +82,7 @@ if (!jwtSecret) {
     SignupService,
     ClaudeScriptService,
     EmailService,
+    DemoService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
   ],
 })

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Cpu, Loader2, LogIn } from 'lucide-react';
+import { Cpu, Loader2, LogIn, Sparkles } from 'lucide-react';
 import { login } from '../lib/api';
 
 export function LoginGate({ onLoggedIn }: { onLoggedIn: () => void }) {
@@ -15,6 +15,19 @@ export function LoginGate({ onLoggedIn }: { onLoggedIn: () => void }) {
     setError(null);
     try {
       await login(username.trim(), password);
+      onLoggedIn();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const enterDemo = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await login('demo', 'demo@1234');
       onLoggedIn();
     } catch (err) {
       setError((err as Error).message);
@@ -76,6 +89,26 @@ export function LoginGate({ onLoggedIn }: { onLoggedIn: () => void }) {
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
           เข้าสู่ระบบ
         </button>
+
+        <div className="my-4 flex items-center gap-3 text-[11px] text-slate-500">
+          <span className="flex-1 h-px bg-white/10" />
+          หรือ
+          <span className="flex-1 h-px bg-white/10" />
+        </div>
+
+        <button
+          type="button"
+          onClick={enterDemo}
+          disabled={busy}
+          className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold border border-cyan-400/40 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/20 transition disabled:opacity-40"
+        >
+          <Sparkles className="w-4 h-4" />
+          ลองเล่นโหมดเดโม — ไม่ต้องสมัคร
+        </button>
+        <p className="mt-2 text-[11px] text-slate-500 text-center">
+          ร้านตัวอย่างพร้อมข้อมูลจำลอง ทดลองได้ทุกฟีเจอร์
+          (user: <code>demo</code> / pass: <code>demo@1234</code>)
+        </p>
       </motion.form>
     </div>
   );

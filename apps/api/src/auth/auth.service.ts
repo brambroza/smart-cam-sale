@@ -81,6 +81,10 @@ export class AuthService implements OnModuleInit {
     if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
       throw new UnauthorizedException('รหัสผ่านเดิมไม่ถูกต้อง');
     }
+    // the public demo account must stay usable by the next visitor
+    if (user.username === 'demo') {
+      throw new UnauthorizedException('บัญชีเดโมเปลี่ยนรหัสผ่านไม่ได้');
+    }
     if (newPassword.length < 8) {
       throw new UnauthorizedException('รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร');
     }
@@ -141,6 +145,9 @@ export class AuthService implements OnModuleInit {
     }
     const target = await this.prisma.staffUser.findFirst({ where: { id: userId, orgId } });
     if (!target) throw new UnauthorizedException('ไม่พบบัญชีนี้');
+    if (target.username === 'demo') {
+      throw new UnauthorizedException('บัญชีเดโมเปลี่ยนรหัสผ่านไม่ได้');
+    }
     await this.prisma.staffUser.update({
       where: { id: userId },
       data: { passwordHash: await bcrypt.hash(newPassword, 10) },
@@ -154,6 +161,9 @@ export class AuthService implements OnModuleInit {
     }
     const target = await this.prisma.staffUser.findFirst({ where: { id: userId, orgId } });
     if (!target) throw new UnauthorizedException('ไม่พบบัญชีนี้');
+    if (target.username === 'demo') {
+      throw new UnauthorizedException('ลบบัญชีเดโมไม่ได้');
+    }
     if (target.role !== 'staff') {
       const admins = await this.prisma.staffUser.count({
         where: { orgId, role: { in: ['admin', 'superadmin'] } },
