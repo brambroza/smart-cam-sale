@@ -114,6 +114,17 @@ export class RecognitionGateway {
     this.busy.set(client.id, true);
     try {
       const orgId = this.orgOf(client);
+
+      // Relay the frame to viewer consoles BEFORE recognition — the live view
+      // must not go dark while the AI service is cold-starting or slow.
+      if (body.channel && body.broadcastFrame) {
+        this.server.to(this.room(client, body.channel)).emit('camera_frame', {
+          channel: body.channel,
+          imageBase64: body.imageBase64,
+          ts: body.ts,
+        });
+      }
+
       const { message, primaryEmbedding } = await this.svc.recognizeFrameWithEmbedding(
         body.imageBase64,
         body.frameId,
@@ -130,17 +141,10 @@ export class RecognitionGateway {
       // Reply to the sender (webcam console or bridge)
       client.emit('recognition', message);
 
-      // Bridge mode: fan out result + (optionally) the frame itself to viewers
+      // Bridge mode: fan out the recognition result to viewers (the frame
+      // itself was already relayed above, ahead of the AI round-trip)
       if (body.channel) {
-        const room = this.room(client, body.channel);
-        this.server.to(room).emit('recognition', message);
-        if (body.broadcastFrame) {
-          this.server.to(room).emit('camera_frame', {
-            channel: body.channel,
-            imageBase64: body.imageBase64,
-            ts: body.ts,
-          });
-        }
+        this.server.to(this.room(client, body.channel)).emit('recognition', message);
       }
     } catch (e) {
       this.logger.error((e as Error).message);
