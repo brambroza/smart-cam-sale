@@ -1,0 +1,80 @@
+import { BadRequestException } from '@nestjs/common';
+import { MembersService } from './members.service';
+import { PrismaService } from '../prisma.service';
+import { CONSENT_VERSION } from '../consent/consent-policy';
+
+const EMBEDDING = Array.from({ length: 512 }, () => 0.1);
+
+function prismaMock() {
+  return {
+    member: {
+      create: jest.fn().mockResolvedValue({ id: 'm-new' }),
+      update: jest.fn().mockResolvedValue({}),
+    },
+    consentRecord: {
+      create: jest.fn().mockResolvedValue({ id: 'c1' }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    faceEmbedding: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    $executeRawUnsafe: jest.fn().mockResolvedValue(1),
+  } as unknown as PrismaService;
+}
+
+const BASE = {
+  fullName: 'สมชาย ใจดี',
+  displayName: 'ชาย',
+  embedding: EMBEDDING,
+};
+
+describe('MembersService.enroll — PDPA consent enforcement', () => {
+  it('rejects enrollment without consent', async () => {
+    const svc = new MembersService(prismaMock());
+    await expect(svc.enroll({ ...BASE })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      svc.enroll({ ...BASE, consentAccepted: false, consentVersion: CONSENT_VERSION }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects a stale consent version', async () => {
+    const svc = new MembersService(prismaMock());
+    await expect(
+      svc.enroll({ ...BASE, consentAccepted: true, consentVersion: '0.9-old' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('records a granted ConsentRecord with the staff witness on success', async () => {
+    const prisma = prismaMock();
+    const svc = new MembersService(prisma);
+    const res = await svc.enroll({
+      ...BASE,
+      consentAccepted: true,
+      consentVersion: CONSENT_VERSION,
+      staff: { id: 'u1', username: 'admin' },
+    });
+    expect(res).toMatchObject({ ok: true, memberId: 'm-new' });
+    expect(prisma.consentRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'granted',
+          policyVersion: CONSENT_VERSION,
+          staffUsername: 'admin',
+        }),
+      }),
+    );
+  });
+});
+
+describe('MembersService.removeFace', () => {
+  it('deletes embeddings, clears opt-in, and records a withdrawal', async () => {
+    const prisma = prismaMock();
+    const svc = new MembersService(prisma);
+    await svc.removeFace('m1', { id: 'u1', username: 'admin' });
+    expect(prisma.faceEmbedding.deleteMany).toHaveBeenCalledWith({ where: { memberId: 'm1' } });
+    expect(prisma.member.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { faceOptIn: false } }),
+    );
+    expect(prisma.consentRecord.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ action: 'withdrawn' }) }),
+    );
+  });
+});

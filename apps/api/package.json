@@ -8,7 +8,18 @@
     "start": "node dist/main.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "seed": "ts-node prisma/seed.ts"
+    "seed": "ts-node prisma/seed.ts",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "roots": [
+      "<rootDir>/src"
+    ],
+    "moduleNameMapper": {
+      "^@smart-cam/shared-types$": "<rootDir>/../../packages/shared-types/src"
+    }
   },
   "dependencies": {
     "@nestjs/common": "^10.4.0",
@@ -32,8 +43,11 @@
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/jest": "^29.5.13",
     "@types/node": "^22.7.0",
+    "jest": "^29.7.0",
     "prisma": "^5.20.0",
+    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.0"
   }

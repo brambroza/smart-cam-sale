@@ -1,0 +1,48 @@
+name: CI
+
+# Gate on every push and PR: unit tests + both apps must build.
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/ci.yml'
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: pnpm --filter @smart-cam/api exec prisma generate
+
+      - name: API unit tests
+        run: pnpm --filter @smart-cam/api run test
+
+      - name: API build
+        run: pnpm --filter @smart-cam/api run build
+
+      - name: Web build
+        run: pnpm --filter @smart-cam/web run build
+        env:
+          VITE_API_URL: https://example.invalid
