@@ -17,7 +17,9 @@ const ADMIN = {
 function prismaMock(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     organization: {
-      findUnique: jest.fn().mockResolvedValue({ plan: 'pilot' }),
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ name: 'ร้านหลัก', plan: 'pilot', cameraEnabled: true }),
     },
     staffUser: {
       count: jest.fn().mockResolvedValue(1),
@@ -45,9 +47,23 @@ describe('AuthService.login', () => {
       displayName: 'Administrator',
       role: 'admin',
       orgId: 'org1',
+      orgName: 'ร้านหลัก',
+      cameraEnabled: true,
     });
     const payload = await svc.verifyToken(res.accessToken);
     expect(payload).toMatchObject({ sub: 'u1', username: 'admin', role: 'admin', orgId: 'org1' });
+  });
+
+  it('LITE TIER: login response carries cameraEnabled=false so the web app renders the phone console', async () => {
+    const prisma = prismaMock();
+    (prisma as any).organization.findUnique.mockResolvedValue({
+      name: 'คลินิก Lite',
+      plan: 'pilot',
+      cameraEnabled: false,
+    });
+    const svc = new AuthService(prisma, jwt);
+    const res = await svc.login('admin', 'correct-password');
+    expect(res.user).toMatchObject({ orgName: 'คลินิก Lite', cameraEnabled: false });
   });
 
   it('rejects a wrong password and an unknown user with the same error', async () => {

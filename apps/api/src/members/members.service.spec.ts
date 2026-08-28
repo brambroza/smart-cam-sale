@@ -71,6 +71,60 @@ describe('MembersService.enroll — PDPA consent enforcement', () => {
   });
 });
 
+describe('MembersService.enrollLite — phone-only tier, no biometrics', () => {
+  const LITE = { fullName: 'สมหญิง ใจดี', displayName: 'หญิง', phone: '081-234-5678', orgId: 'org1' };
+
+  function litePrisma() {
+    const prisma = prismaMock();
+    // enrollLite ใช้ findFirst เช็คเบอร์ซ้ำ — ค่าเริ่มต้นคือ "ยังไม่มี"
+    (prisma.member.findFirst as jest.Mock).mockResolvedValue(null);
+    return prisma;
+  }
+
+  it('normalizes the phone, creates the member with faceOptIn=false, and skips the consent flow', async () => {
+    const prisma = litePrisma();
+    const svc = new MembersService(prisma);
+    const res = await svc.enrollLite(LITE);
+    expect(res).toMatchObject({ ok: true, memberId: 'm-new', welcomePoints: 100 });
+    expect(prisma.member.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orgId: 'org1',
+          phone: '0812345678', // ขีดถูกตัดออก
+          faceOptIn: false,
+          points: 100,
+        }),
+      }),
+    );
+    // ไม่มี biometrics → ต้องไม่สร้าง ConsentRecord (ฐาน contract ตาม PDPA)
+    expect(prisma.consentRecord.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing names and invalid phones', async () => {
+    const svc = new MembersService(litePrisma());
+    await expect(svc.enrollLite({ ...LITE, fullName: '  ' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(svc.enrollLite({ ...LITE, phone: '0812' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(svc.enrollLite({ ...LITE, phone: '1234567890123456' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects a phone already registered in the same org', async () => {
+    const prisma = litePrisma();
+    (prisma.member.findFirst as jest.Mock).mockResolvedValue({ id: 'm-existing' });
+    const svc = new MembersService(prisma);
+    await expect(svc.enrollLite(LITE)).rejects.toBeInstanceOf(BadRequestException);
+    // การเช็คซ้ำต้อง scope ที่ org ของตัวเองเท่านั้น
+    expect(prisma.member.findFirst).toHaveBeenCalledWith({
+      where: { orgId: 'org1', phone: '0812345678' },
+    });
+  });
+});
+
 describe('MembersService.removeFace', () => {
   it('deletes embeddings, clears opt-in, and records a withdrawal', async () => {
     const prisma = prismaMock();

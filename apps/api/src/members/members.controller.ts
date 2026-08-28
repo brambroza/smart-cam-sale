@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { MembersService, StaffRef } from './members.service';
+import { RecognitionService } from '../recognition/recognition.service';
 import type { JwtPayload } from '../auth/auth.service';
 
 interface EnrollBody {
@@ -22,11 +23,20 @@ function staffOf(req: AuthedRequest): StaffRef | undefined {
 
 @Controller('members')
 export class MembersController {
-  constructor(private readonly svc: MembersService) {}
+  constructor(
+    private readonly svc: MembersService,
+    private readonly recognition: RecognitionService,
+  ) {}
 
   @Get('stats')
   stats(@Req() req: AuthedRequest) {
     return this.svc.stats(req.user.orgId);
+  }
+
+  /** Lite mode: identify a customer by phone at the counter. */
+  @Get('lookup')
+  lookup(@Query('phone') phone: string, @Req() req: AuthedRequest) {
+    return this.recognition.lookupByPhone(phone ?? '', req.user.orgId);
   }
 
   @Get()
@@ -47,6 +57,22 @@ export class MembersController {
   @Post('enroll')
   enroll(@Body() body: EnrollBody, @Req() req: AuthedRequest) {
     return this.svc.enroll({ ...body, staff: staffOf(req), orgId: req.user.orgId });
+  }
+
+  /** Lite mode: enroll by phone, no biometrics. */
+  @Post('enroll-lite')
+  enrollLite(
+    @Body()
+    body: {
+      fullName: string;
+      displayName: string;
+      phone: string;
+      gender?: 'male' | 'female' | 'unknown';
+      birthYear?: number;
+    },
+    @Req() req: AuthedRequest,
+  ) {
+    return this.svc.enrollLite({ ...body, orgId: req.user.orgId });
   }
 
   @Post(':id/face')

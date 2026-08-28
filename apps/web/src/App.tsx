@@ -15,8 +15,9 @@ import { CameraManager } from './components/CameraManager';
 import { BackOffice } from './components/BackOffice';
 import { SaleModal } from './components/SaleModal';
 import { LoginGate } from './components/LoginGate';
+import { LitePanel } from './components/LitePanel';
 import { getToken, clearAuth, getUser } from './lib/api';
-import { PackageOpen, UserPlus, Webcam, Video, Settings2, ShoppingCart, LogOut, Archive } from 'lucide-react';
+import { PackageOpen, UserPlus, Webcam, Video, Settings2, ShoppingCart, LogOut, Archive, Cpu } from 'lucide-react';
 import { cn } from './lib/utils';
 
 type CamSource = 'webcam' | 'bridge';
@@ -35,7 +36,82 @@ export default function App() {
   if (!authed) {
     return <LoginGate onLoggedIn={() => setAuthed(true)} />;
   }
-  return <Console onLogout={() => { clearAuth(); setAuthed(false); }} />;
+  const onLogout = () => {
+    clearAuth();
+    setAuthed(false);
+  };
+  // แพ็กเกจ Lite ไม่มีกล้อง — คอนโซลแยกที่ไม่แตะ webcam/WS recognition เลย
+  if (getUser()?.cameraEnabled === false) {
+    return <LiteConsole onLogout={onLogout} />;
+  }
+  return <Console onLogout={onLogout} />;
+}
+
+function LiteConsole({ onLogout }: { onLogout: () => void }) {
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [backOfficeOpen, setBackOfficeOpen] = useState(false);
+  const user = getUser();
+
+  return (
+    <div className="min-h-screen flex flex-col">
+      <header className="glass-strong m-4 px-5 py-3 flex items-center justify-between shadow-card">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-400 to-cyan-400 grid place-items-center shadow-glow">
+            <Cpu className="w-5 h-5 text-ink-950" />
+          </div>
+          <div>
+            <div className="font-display font-bold text-lg tracking-tight text-slate-100">
+              Smart Cam Sale
+              <span className="ml-2 align-middle text-[10px] px-2 py-0.5 rounded-full border text-cyan-300 border-cyan-400/40 bg-cyan-500/10 font-sans">
+                LITE
+              </span>
+            </div>
+            <div className="text-xs text-slate-400 -mt-0.5">
+              {user?.orgName ? `${user.orgName} · ` : ''}ค้นหาลูกค้าด้วยเบอร์โทร
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {(user?.role === 'admin' || user?.role === 'superadmin') && (
+            <button
+              onClick={() => setBackOfficeOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-violet-500/10 text-violet-300 border-violet-400/30 hover:border-violet-400/60 transition"
+              title="จัดการสินค้า สมาชิก พนักงาน และเชื่อม POS"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              หลังบ้าน
+            </button>
+          )}
+          <button
+            onClick={onLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-white/[0.03] text-slate-400 border-white/10 hover:border-rose-400/40 hover:text-rose-200 transition"
+            title={user ? `ออกจากระบบ (${user.displayName})` : 'ออกจากระบบ'}
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            {user?.displayName ?? 'ออกจากระบบ'}
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 flex flex-col gap-4 p-4 max-w-3xl w-full mx-auto">
+        <LitePanel />
+        <StatsStrip />
+      </main>
+
+      <motion.button
+        onClick={() => setBrowserOpen(true)}
+        whileHover={{ scale: 1.04 }}
+        whileTap={{ scale: 0.96 }}
+        className="fixed bottom-6 right-6 z-30 flex items-center gap-2 pl-4 pr-5 py-3 rounded-full glass-strong border border-white/15 shadow-glow font-semibold text-slate-100"
+      >
+        <PackageOpen className="w-5 h-5 text-neon-cyan" />
+        <span>สินค้าทั้งหมด</span>
+      </motion.button>
+
+      <ProductBrowser open={browserOpen} onClose={() => setBrowserOpen(false)} />
+      <BackOffice open={backOfficeOpen} onClose={() => setBackOfficeOpen(false)} />
+    </div>
+  );
 }
 
 function Console({ onLogout }: { onLogout: () => void }) {

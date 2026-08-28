@@ -43,7 +43,7 @@ export class OrgsService implements OnModuleInit {
     const [orgs, memberCounts, staffCounts] = await Promise.all([
       this.prisma.organization.findMany({
         orderBy: { createdAt: 'asc' },
-        select: { id: true, name: true, slug: true, plan: true, createdAt: true },
+        select: { id: true, name: true, slug: true, plan: true, cameraEnabled: true, createdAt: true },
       }),
       this.prisma.member.groupBy({ by: ['orgId'], _count: { _all: true } }),
       this.prisma.staffUser.groupBy({ by: ['orgId'], _count: { _all: true } }),
@@ -79,6 +79,7 @@ export class OrgsService implements OnModuleInit {
     slug: string;
     adminUsername: string;
     adminPassword: string;
+    cameraEnabled?: boolean;
   }) {
     const slug = input.slug?.trim().toLowerCase();
     if (!input.name?.trim()) throw new BadRequestException('ต้องมีชื่อองค์กร');
@@ -101,7 +102,12 @@ export class OrgsService implements OnModuleInit {
 
     const bridgeToken = `brg_${randomBytes(24).toString('hex')}`;
     const org = await this.prisma.organization.create({
-      data: { name: input.name.trim(), slug, bridgeToken },
+      data: {
+        name: input.name.trim(),
+        slug,
+        bridgeToken,
+        cameraEnabled: input.cameraEnabled ?? true,
+      },
     });
     await this.prisma.staffUser.create({
       data: {
@@ -116,10 +122,29 @@ export class OrgsService implements OnModuleInit {
       id: org.id,
       name: org.name,
       slug: org.slug,
-      // shown once — the bridge on-site needs this value
+      cameraEnabled: org.cameraEnabled,
+      // shown once — the bridge on-site needs this value (Lite orgs won't use it)
       bridgeToken,
       adminUsername: username,
     };
+  }
+
+  /** Tier switch: Lite (false) refuses camera frames and bridge connections. */
+  async setCameraEnabled(orgId: string, enabled: boolean) {
+    await this.prisma.organization
+      .update({ where: { id: orgId }, data: { cameraEnabled: enabled } })
+      .catch(() => {
+        throw new NotFoundException('ไม่พบองค์กรนี้');
+      });
+    return { ok: true, orgId, cameraEnabled: enabled };
+  }
+
+  async isCameraEnabled(orgId: string): Promise<boolean> {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { cameraEnabled: true },
+    });
+    return org?.cameraEnabled ?? true;
   }
 
   async rotateBridgeToken(orgId: string) {
@@ -137,9 +162,9 @@ export class OrgsService implements OnModuleInit {
     if (!token) return null;
     const org = await this.prisma.organization.findUnique({
       where: { bridgeToken: token },
-      select: { id: true, plan: true },
+      select: { id: true, plan: true, cameraEnabled: true },
     });
-    if (!org || org.plan === 'suspended') return null;
+    if (!org || org.plan === 'suspended' || !org.cameraEnabled) return null;
     return { orgId: org.id };
   }
 }

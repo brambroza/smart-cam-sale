@@ -24,6 +24,8 @@ import {
   Play,
   Receipt,
   Inbox,
+  Video,
+  Phone,
 } from 'lucide-react';
 import { apiJson, postJson, API_BASE, getUser } from '../lib/api';
 import { formatThb, cn } from '../lib/utils';
@@ -1128,12 +1130,13 @@ interface OrgRow {
   name: string;
   slug: string;
   plan: string;
+  cameraEnabled: boolean;
   createdAt: string;
   memberCount: number;
   staffCount: number;
 }
 
-const EMPTY_ORG = { name: '', slug: '', adminUsername: '', adminPassword: '' };
+const EMPTY_ORG = { name: '', slug: '', adminUsername: '', adminPassword: '', cameraEnabled: true };
 
 function OrgsTab() {
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
@@ -1184,6 +1187,18 @@ function OrgsTab() {
     }
   };
 
+  const toggleCamera = async (o: OrgRow) => {
+    const next = !o.cameraEnabled;
+    const verb = next ? 'เปิดกล้อง (อัปเกรดจาก Lite)' : 'ปิดกล้อง (ลดเป็น Lite)';
+    if (!window.confirm(`${verb} ให้ "${o.name}"?`)) return;
+    try {
+      await postJson(`/admin/orgs/${o.id}/camera`, { enabled: next });
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
   const rotate = async (o: OrgRow) => {
     if (!window.confirm(`ออก bridge token ใหม่ให้ "${o.name}"? token เดิมใช้ไม่ได้ทันที — ต้องอัปเดตที่เครื่อง bridge ของร้าน`)) return;
     try {
@@ -1208,6 +1223,16 @@ function OrgsTab() {
           <Input label="Username admin ร้าน *" value={form.adminUsername} onChange={(v) => setForm({ ...form, adminUsername: v })} />
           <Input label="รหัสผ่าน admin (8+) *" value={form.adminPassword} onChange={(v) => setForm({ ...form, adminPassword: v })} type="password" />
         </div>
+        <label className="mt-3 flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={!form.cameraEnabled}
+            onChange={(e) => setForm({ ...form, cameraEnabled: !e.target.checked })}
+            className="accent-cyan-400"
+          />
+          <Phone className="w-3.5 h-3.5 text-cyan-300" />
+          แพ็กเกจ Lite — ไม่ใช้กล้อง (พนักงานค้นหาลูกค้าด้วยเบอร์โทร)
+        </label>
         <button
           onClick={create}
           disabled={busy || !form.name || !form.slug || !form.adminUsername || form.adminPassword.length < 8}
@@ -1257,6 +1282,11 @@ function OrgsTab() {
               <span className="text-[11px] text-slate-400 hidden md:block">
                 สมาชิก {o.memberCount} · พนักงาน {o.staffCount}
               </span>
+              {!o.cameraEnabled && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full border text-cyan-300 border-cyan-400/40 bg-cyan-500/10">
+                  LITE
+                </span>
+              )}
               <span
                 className={cn(
                   'text-[10px] px-2 py-0.5 rounded-full border',
@@ -1267,6 +1297,16 @@ function OrgsTab() {
               >
                 {o.plan}
               </span>
+              <button
+                onClick={() => toggleCamera(o)}
+                title={o.cameraEnabled ? 'ลดเป็น Lite (ปิดกล้อง)' : 'อัปเกรด — เปิดกล้อง'}
+                className={cn(
+                  'p-1.5 rounded-lg hover:bg-white/10',
+                  o.cameraEnabled ? 'text-slate-400' : 'text-cyan-300',
+                )}
+              >
+                {o.cameraEnabled ? <Video className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
+              </button>
               <button onClick={() => rotate(o)} title="ออก bridge token ใหม่" className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400">
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>

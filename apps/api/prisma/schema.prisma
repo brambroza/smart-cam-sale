@@ -32,6 +32,8 @@ model Organization {
   name          String
   slug          String   @unique
   plan          String   @default("pilot") // pilot | standard | suspended
+  // false = Lite tier: phone-lookup only, camera/bridge features refused
+  cameraEnabled Boolean  @default(true)
   bridgeToken   String   @unique
   pricePerStore Float    @default(2500) // THB/สาขา/เดือน — ต่อรองรายลูกค้าได้
   createdAt     DateTime @default(now())

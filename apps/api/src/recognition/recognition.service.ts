@@ -181,6 +181,63 @@ export class RecognitionService {
     };
   }
 
+  /**
+   * Lite mode: identify the customer by phone at the counter instead of by
+   * camera. Reuses the whole engine (profile, history, recommendations,
+   * Claude script) and logs a matched VisitLog so ROI attribution counts
+   * these bills exactly like camera recognitions.
+   */
+  async lookupByPhone(phone: string, orgId: string) {
+    const normalized = phone.replace(/[^0-9+]/g, '');
+    if (normalized.length < 9) return { found: false as const };
+    const member = await this.prisma.member.findFirst({
+      where: { phone: normalized, orgId },
+    });
+    if (!member) return { found: false as const };
+
+    const tod = timeOfDay(new Date());
+    const age = member.birthYear ? new Date().getFullYear() - member.birthYear : 30;
+    const [memberProfile, purchases, recommendations] = await Promise.all([
+      this.buildMemberProfile(member.id),
+      this.recentPurchases(member.id),
+      this.recos.forMember(member.id, tod, orgId),
+    ]);
+
+    await this.prisma.visitLog.create({
+      data: {
+        orgId,
+        memberId: member.id,
+        matchedFace: true, // "member identified" — keeps ROI attribution unified
+        estimatedAge: age,
+        gender: member.gender,
+        ageBucket: ageBucket(age),
+      },
+    });
+
+    const templateScript = this.craftScript(
+      memberProfile,
+      purchases[0]?.productName,
+      recommendations[0]?.name,
+    );
+    const claudeScript = await this.claude.generate({
+      isMember: true,
+      member: memberProfile,
+      age,
+      gender: member.gender,
+      timeOfDay: tod,
+      recentPurchases: purchases,
+      recommendations,
+    });
+
+    return {
+      found: true as const,
+      member: memberProfile,
+      recentPurchases: purchases,
+      recommendations,
+      suggestedScript: claudeScript ?? templateScript,
+    };
+  }
+
   /** Tenant-critical: the vector search MUST stay inside the org — a match
    *  across orgs would leak another business's member identity (PDPA).
    *  Kept non-private so the isolation test can call it directly. */

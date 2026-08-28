@@ -48,15 +48,13 @@ export class AuthService implements OnModuleInit {
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
     }
+    const org = await this.prisma.organization.findUnique({
+      where: { id: user.orgId },
+      select: { name: true, plan: true, cameraEnabled: true },
+    });
     // a suspended org locks out its staff (superadmin is platform-level, exempt)
-    if (user.role !== 'superadmin') {
-      const org = await this.prisma.organization.findUnique({
-        where: { id: user.orgId },
-        select: { plan: true },
-      });
-      if (org?.plan === 'suspended') {
-        throw new UnauthorizedException('องค์กรนี้ถูกระงับการใช้งาน — ติดต่อผู้ให้บริการ');
-      }
+    if (user.role !== 'superadmin' && org?.plan === 'suspended') {
+      throw new UnauthorizedException('องค์กรนี้ถูกระงับการใช้งาน — ติดต่อผู้ให้บริการ');
     }
     const payload: JwtPayload = {
       sub: user.id,
@@ -72,6 +70,8 @@ export class AuthService implements OnModuleInit {
         displayName: user.displayName,
         role: user.role,
         orgId: user.orgId,
+        orgName: org?.name ?? '',
+        cameraEnabled: org?.cameraEnabled ?? true,
       },
     };
   }

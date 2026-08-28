@@ -9,6 +9,8 @@ export interface AuthUser {
   displayName: string;
   role: string; // staff | admin | superadmin
   orgId?: string;
+  orgName?: string;
+  cameraEnabled?: boolean; // false = แพ็กเกจ Lite (ค้นหาด้วยเบอร์โทร ไม่ใช้กล้อง)
 }
 
 export function getToken(): string | null {

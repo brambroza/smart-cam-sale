@@ -71,18 +71,55 @@ describe('OrgsService.setPlan', () => {
 });
 
 describe('OrgsService.resolveBridgeToken — tenant isolation', () => {
-  it('rejects missing/unknown tokens and suspended orgs, resolves active orgs', async () => {
+  it('rejects missing/unknown tokens, suspended orgs, and Lite orgs; resolves active camera orgs', async () => {
     const prisma = prismaMock();
     (prisma.organization.findUnique as jest.Mock).mockImplementation(({ where }: any) => {
-      if (where.bridgeToken === 'brg_active') return Promise.resolve({ id: 'org_a', plan: 'pilot' });
+      if (where.bridgeToken === 'brg_active')
+        return Promise.resolve({ id: 'org_a', plan: 'pilot', cameraEnabled: true });
       if (where.bridgeToken === 'brg_frozen')
-        return Promise.resolve({ id: 'org_b', plan: 'suspended' });
+        return Promise.resolve({ id: 'org_b', plan: 'suspended', cameraEnabled: true });
+      if (where.bridgeToken === 'brg_lite')
+        return Promise.resolve({ id: 'org_c', plan: 'pilot', cameraEnabled: false });
       return Promise.resolve(null);
     });
     const svc = new OrgsService(prisma);
     expect(await svc.resolveBridgeToken(undefined)).toBeNull();
     expect(await svc.resolveBridgeToken('brg_nope')).toBeNull();
     expect(await svc.resolveBridgeToken('brg_frozen')).toBeNull();
+    // แพ็กเกจ Lite: bridge ต่อไม่ได้แม้ token จะถูกต้อง
+    expect(await svc.resolveBridgeToken('brg_lite')).toBeNull();
     expect(await svc.resolveBridgeToken('brg_active')).toEqual({ orgId: 'org_a' });
+  });
+});
+
+describe('OrgsService.setCameraEnabled / isCameraEnabled', () => {
+  it('flips the flag and defaults to camera-on for unknown orgs', async () => {
+    const prisma = prismaMock();
+    const svc = new OrgsService(prisma);
+    await expect(svc.setCameraEnabled('org_x', false)).resolves.toEqual({
+      ok: true,
+      orgId: 'org_x',
+      cameraEnabled: false,
+    });
+    expect(prisma.organization.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'org_x' }, data: { cameraEnabled: false } }),
+    );
+    // org row missing → treat as camera tier (fail open for legacy orgs)
+    (prisma.organization.findUnique as jest.Mock).mockResolvedValue(null);
+    expect(await svc.isCameraEnabled('org_ghost')).toBe(true);
+    (prisma.organization.findUnique as jest.Mock).mockResolvedValue({ cameraEnabled: false });
+    expect(await svc.isCameraEnabled('org_lite')).toBe(false);
+  });
+
+  it('create() honors cameraEnabled=false for Lite orgs', async () => {
+    const svc = new OrgsService(prismaMock());
+    const res = await svc.create({
+      name: 'คลินิก Lite',
+      slug: 'lite-clinic',
+      adminUsername: 'liteadmin',
+      adminPassword: 'long-enough',
+      cameraEnabled: false,
+    });
+    expect(res.cameraEnabled).toBe(false);
   });
 });

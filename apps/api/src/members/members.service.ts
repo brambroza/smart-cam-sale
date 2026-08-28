@@ -128,6 +128,43 @@ export class MembersService {
     return { ok: true, memberId: member.id, welcomePoints: 100 };
   }
 
+  /**
+   * Lite enrollment: membership keyed by phone, no biometrics collected —
+   * contract basis under PDPA, so no explicit-consent flow is required.
+   */
+  async enrollLite(input: {
+    fullName: string;
+    displayName: string;
+    phone: string;
+    gender?: 'male' | 'female' | 'unknown';
+    birthYear?: number;
+    orgId: string;
+  }) {
+    const phone = (input.phone ?? '').replace(/[^0-9+]/g, '');
+    if (!input.fullName?.trim() || !input.displayName?.trim()) {
+      throw new BadRequestException('ต้องมีชื่อและชื่อเล่น');
+    }
+    if (phone.length < 9 || phone.length > 15) {
+      throw new BadRequestException('เบอร์โทรไม่ถูกต้อง');
+    }
+    const dup = await this.prisma.member.findFirst({ where: { orgId: input.orgId, phone } });
+    if (dup) throw new BadRequestException('เบอร์นี้เป็นสมาชิกอยู่แล้ว');
+    const member = await this.prisma.member.create({
+      data: {
+        orgId: input.orgId,
+        fullName: input.fullName.trim(),
+        displayName: input.displayName.trim(),
+        phone,
+        gender: (input.gender ?? 'unknown') as any,
+        birthYear: input.birthYear,
+        tier: 'bronze',
+        points: 100, // ของขวัญสมัครใหม่
+        faceOptIn: false,
+      },
+    });
+    return { ok: true, memberId: member.id, welcomePoints: 100 };
+  }
+
   async removeFace(memberId: string, orgId: string, staff?: StaffRef) {
     const owned = await this.prisma.member.findFirst({ where: { id: memberId, orgId } });
     if (!owned) throw new NotFoundException('ไม่พบสมาชิกในองค์กรนี้');

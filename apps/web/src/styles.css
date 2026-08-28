@@ -53,6 +53,10 @@ body {
   .label-eyebrow {
     @apply text-[10.5px] uppercase tracking-[0.14em] text-slate-500 font-medium;
   }
+  .lite-input {
+    @apply w-full bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm
+      text-slate-100 focus:border-neon-cyan/50 focus:outline-none;
+  }
 }
 
 .shimmer {

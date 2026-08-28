@@ -16,9 +16,20 @@ export class OrgsController {
   @Post()
   create(
     @Body()
-    body: { name: string; slug: string; adminUsername: string; adminPassword: string },
+    body: {
+      name: string;
+      slug: string;
+      adminUsername: string;
+      adminPassword: string;
+      cameraEnabled?: boolean;
+    },
   ) {
     return this.svc.create(body);
+  }
+
+  @Post(':id/camera')
+  setCamera(@Param('id') id: string, @Body() body: { enabled: boolean }) {
+    return this.svc.setCameraEnabled(id, !!body.enabled);
   }
 
   @Post(':id/rotate-bridge-token')

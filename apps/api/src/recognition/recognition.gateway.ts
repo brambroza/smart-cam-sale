@@ -56,6 +56,8 @@ export class RecognitionGateway {
         const payload = await this.auth.verifyToken(token);
         (client.data as Record<string, unknown>).user = payload;
         (client.data as Record<string, unknown>).orgId = payload.orgId;
+        (client.data as Record<string, unknown>).cameraEnabled =
+          await this.orgs.isCameraEnabled(payload.orgId);
         this.logger.log(
           `socket connect (staff:${payload.username} org:${payload.orgId}): ${client.id}`,
         );
@@ -102,6 +104,13 @@ export class RecognitionGateway {
   @SubscribeMessage('frame')
   async onFrame(@ConnectedSocket() client: Socket, @MessageBody() body: BridgeFrameMessage) {
     if (this.busy.get(client.id)) return; // drop if previous still running
+    // Lite tier: the org bought phone-lookup, not camera recognition
+    if ((client.data as { cameraEnabled?: boolean }).cameraEnabled === false) {
+      client.emit('recognition_error', {
+        message: 'แพ็กเกจ Lite ไม่รวมกล้อง — ใช้ค้นหาด้วยเบอร์โทร หรืออัปเกรดแพ็กเกจ',
+      });
+      return;
+    }
     this.busy.set(client.id, true);
     try {
       const orgId = this.orgOf(client);
