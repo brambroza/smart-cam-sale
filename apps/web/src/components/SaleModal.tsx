@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Search, ShoppingCart, Minus, Plus, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
-import { apiFetch } from '../lib/api';
+import { apiFetch, apiJson } from '../lib/api';
 import { formatThb } from '../lib/utils';
+import { ReceiptPanel, type ReceiptData } from './Receipt';
 import type { MemberProfile } from '@smart-cam/shared-types';
 
 interface Product {
@@ -23,7 +24,8 @@ export function SaleModal({ open, onClose, member }: Props) {
   const [q, setQ] = useState('');
   const [cart, setCart] = useState<Map<string, number>>(new Map());
   const [step, setStep] = useState<'cart' | 'saving' | 'done' | 'error'>('cart');
-  const [result, setResult] = useState<{ total: number; pointsEarned: number; newPointsBalance: number } | null>(null);
+  const [result, setResult] = useState<{ purchaseId: string; total: number; pointsEarned: number; newPointsBalance: number } | null>(null);
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,6 +34,7 @@ export function SaleModal({ open, onClose, member }: Props) {
       setQ('');
       setStep('cart');
       setResult(null);
+      setReceipt(null);
       setError(null);
       return;
     }
@@ -76,8 +79,13 @@ export function SaleModal({ open, onClose, member }: Props) {
         const body = (await res.json().catch(() => null)) as { message?: string } | null;
         throw new Error(body?.message ?? `HTTP ${res.status}`);
       }
-      setResult(await res.json());
+      const saved = (await res.json()) as { purchaseId: string; total: number; pointsEarned: number; newPointsBalance: number };
+      setResult(saved);
       setStep('done');
+      // PromptPay QR + receipt data — failure here never blocks the sale flow
+      apiJson<ReceiptData>(`/purchases/${saved.purchaseId}/receipt`)
+        .then(setReceipt)
+        .catch(() => setReceipt(null));
     } catch (e) {
       setError((e as Error).message);
       setStep('error');
@@ -194,7 +202,7 @@ export function SaleModal({ open, onClose, member }: Props) {
             )}
 
             {step === 'done' && result && (
-              <div className="py-12 text-center px-6">
+              <div className="py-8 text-center px-6 overflow-y-auto">
                 <CheckCircle2 className="w-14 h-14 mx-auto text-neon-lime" />
                 <p className="mt-3 font-semibold text-lg text-slate-100">
                   บันทึกแล้ว {formatThb(result.total)}
@@ -202,6 +210,7 @@ export function SaleModal({ open, onClose, member }: Props) {
                 <p className="text-sm text-slate-400 mt-1">
                   +{result.pointsEarned} แต้ม → รวม {result.newPointsBalance.toLocaleString()} แต้ม
                 </p>
+                {receipt && <ReceiptPanel data={receipt} newPointsBalance={result.newPointsBalance} />}
                 <button onClick={onClose} className="btn-primary mt-5 py-2 px-6">ปิด</button>
               </div>
             )}

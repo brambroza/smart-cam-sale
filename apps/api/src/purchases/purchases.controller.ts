@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { PurchasesService, PurchaseItemInput } from './purchases.service';
 import type { JwtPayload } from '../auth/auth.service';
 
@@ -28,5 +28,19 @@ export class PurchasesController {
     @Query('store') store?: string,
   ) {
     return this.svc.summary(req.user.orgId, Number(days) || 7, store || undefined);
+  }
+
+  @Get('day')
+  dayClose(
+    @Req() req: AuthedRequest,
+    @Query('date') date?: string,
+    @Query('store') store?: string,
+  ) {
+    return this.svc.dayClose(req.user.orgId, date, store || undefined);
+  }
+
+  @Get(':id/receipt')
+  receipt(@Param('id') id: string, @Req() req: AuthedRequest) {
+    return this.svc.receipt(id, req.user.orgId);
   }
 }

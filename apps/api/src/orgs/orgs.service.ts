@@ -9,6 +9,7 @@ import { randomBytes } from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
 import { DEFAULT_ORG_ID } from '../auth/auth.service';
+import { normalizePromptPayId } from '../common/promptpay.util';
 
 @Injectable()
 export class OrgsService implements OnModuleInit {
@@ -145,6 +146,27 @@ export class OrgsService implements OnModuleInit {
       select: { cameraEnabled: true },
     });
     return org?.cameraEnabled ?? true;
+  }
+
+  /** Own-org settings an org admin may read (no bridge token, no plan levers). */
+  async getSettings(orgId: string) {
+    const org = await this.prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { name: true, cameraEnabled: true, promptpayId: true },
+    });
+    if (!org) throw new NotFoundException('ไม่พบองค์กรนี้');
+    return org;
+  }
+
+  /** Set/clear the shop's PromptPay target for payment QRs (empty string clears). */
+  async setPromptPayId(orgId: string, raw: string) {
+    const value = raw?.trim() ? normalizePromptPayId(raw) : null;
+    await this.prisma.organization
+      .update({ where: { id: orgId }, data: { promptpayId: value } })
+      .catch(() => {
+        throw new NotFoundException('ไม่พบองค์กรนี้');
+      });
+    return { ok: true, promptpayId: value };
   }
 
   async rotateBridgeToken(orgId: string) {

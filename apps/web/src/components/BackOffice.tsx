@@ -26,7 +26,10 @@ import {
   Inbox,
   Video,
   Phone,
+  Printer,
+  Wallet,
 } from 'lucide-react';
+import { PrintPortal } from './Receipt';
 import { apiJson, postJson, API_BASE, getUser } from '../lib/api';
 import { formatThb, cn } from '../lib/utils';
 
@@ -240,6 +243,8 @@ function OverviewTab() {
         />
       </div>
 
+      <DayCloseCard store={storeFilter} storeNames={nameOfStore} />
+
       <div className="grid md:grid-cols-2 gap-4">
         <div className="glass p-4">
           <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
@@ -305,6 +310,8 @@ function OverviewTab() {
         </div>
       )}
 
+      <PromptPaySettingsCard />
+
       <div className="glass p-4">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
           บิลล่าสุด
@@ -338,6 +345,223 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="glass p-4">
       <div className="font-display font-bold text-xl text-slate-100">{value}</div>
       <div className="text-xs text-slate-400 mt-1">{label}</div>
+    </div>
+  );
+}
+
+// ─────────────────────── daily close (ปิดยอด) ───────────────────────
+
+interface DayClose {
+  date: string;
+  store: string | null;
+  billCount: number;
+  total: number;
+  avgTicket: number;
+  pointsIssued: number;
+  assistedBillCount: number;
+  assistedTotal: number;
+  byStore: { storeCode: string; total: number; count: number }[];
+  topProducts: { productId: string; name: string; qty: number }[];
+}
+
+const todayBkk = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+
+function DayCloseCard({ store, storeNames }: { store: string; storeNames: Map<string, string> }) {
+  const [date, setDate] = useState(todayBkk());
+  const [data, setData] = useState<DayClose | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const q = store ? `&store=${encodeURIComponent(store)}` : '';
+    apiJson<DayClose>(`/purchases/day?date=${date}${q}`)
+      .then((d) => {
+        setData(d);
+        setErr(null);
+      })
+      .catch((e) => setErr((e as Error).message));
+  }, [date, store]);
+
+  return (
+    <div className="glass p-4 border-lime-400/20">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex-1">
+          ปิดยอดรายวัน{data?.store ? ` · ${storeNames.get(data.store) ?? data.store}` : ''}
+        </h3>
+        <input
+          type="date"
+          value={date}
+          max={todayBkk()}
+          onChange={(e) => setDate(e.target.value || todayBkk())}
+          className="bg-white/[0.04] border border-white/10 rounded-lg px-2.5 py-1 text-xs text-slate-100 focus:border-neon-cyan/50 focus:outline-none"
+        />
+        <button
+          onClick={() => window.print()}
+          disabled={!data}
+          className="btn-ghost text-xs py-1 px-2.5 disabled:opacity-40"
+          title="พิมพ์สรุปปิดยอด"
+        >
+          <Printer className="w-3.5 h-3.5" /> พิมพ์
+        </button>
+      </div>
+      {err && <ErrBanner msg={err} />}
+      {!data ? (
+        <Spinner />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-center">
+            <MiniStat label="จำนวนบิล" value={String(data.billCount)} />
+            <MiniStat label="ยอดรวม" value={formatThb(data.total)} accent />
+            <MiniStat label="เฉลี่ย/บิล" value={data.billCount ? formatThb(data.avgTicket) : '—'} />
+            <MiniStat label="แต้มที่แจก" value={data.pointsIssued.toLocaleString()} />
+            <MiniStat
+              label="บิลที่ระบบช่วย"
+              value={data.billCount ? `${data.assistedBillCount} (${formatThb(data.assistedTotal)})` : '—'}
+            />
+          </div>
+          {data.topProducts.length > 0 && (
+            <div className="mt-3 text-xs text-slate-400">
+              ขายดีวันนี้:{' '}
+              <span className="text-slate-200">
+                {data.topProducts.map((p) => `${p.name} ×${p.qty}`).join(' · ')}
+              </span>
+            </div>
+          )}
+          {!data.store && data.byStore.length > 1 && (
+            <div className="mt-2 text-xs text-slate-400">
+              แยกสาขา:{' '}
+              <span className="text-slate-200">
+                {data.byStore
+                  .map((s) => `${storeNames.get(s.storeCode) ?? s.storeCode} ${formatThb(s.total)} (${s.count} บิล)`)
+                  .join(' · ')}
+              </span>
+            </div>
+          )}
+
+          {/* printable day-close slip */}
+          <PrintPortal>
+            <div style={{ fontFamily: 'monospace, sans-serif', width: '300px', color: '#000' }}>
+              <div style={{ textAlign: 'center', fontWeight: 700 }}>สรุปปิดยอดรายวัน</div>
+              <div style={{ textAlign: 'center', fontSize: 12 }}>
+                วันที่ {data.date}
+                {data.store ? ` · สาขา ${storeNames.get(data.store) ?? data.store}` : ' · ทุกสาขา'}
+              </div>
+              <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
+              {[
+                ['จำนวนบิล', String(data.billCount)],
+                ['ยอดขายรวม', `${data.total.toFixed(2)} บาท`],
+                ['เฉลี่ยต่อบิล', data.billCount ? `${data.avgTicket.toFixed(2)} บาท` : '-'],
+                ['แต้มที่แจก', data.pointsIssued.toLocaleString()],
+                ['บิลที่ระบบช่วย', `${data.assistedBillCount} บิล (${data.assistedTotal.toFixed(2)} บาท)`],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', fontSize: 13 }}>
+                  <span style={{ flex: 1 }}>{k}</span>
+                  <span>{v}</span>
+                </div>
+              ))}
+              {data.topProducts.length > 0 && (
+                <>
+                  <hr style={{ border: 'none', borderTop: '1px dashed #000', margin: '6px 0' }} />
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>สินค้าขายดี</div>
+                  {data.topProducts.map((p) => (
+                    <div key={p.productId} style={{ display: 'flex', fontSize: 12 }}>
+                      <span style={{ flex: 1 }}>{p.name}</span>
+                      <span>×{p.qty}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+              <div style={{ textAlign: 'center', fontSize: 10, marginTop: 8 }}>
+                พิมพ์ {new Date().toLocaleString('th-TH')} · Smart Cam Sale
+              </div>
+            </div>
+          </PrintPortal>
+        </>
+      )}
+    </div>
+  );
+}
+
+function MiniStat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div className="bg-white/[0.03] border border-white/10 rounded-xl px-2 py-2.5">
+      <div className={cn('font-mono font-bold text-sm', accent ? 'text-neon-lime' : 'text-slate-100')}>
+        {value}
+      </div>
+      <div className="text-[10px] text-slate-500 mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+// ─────────────────── PromptPay settings (รับเงินหน้าร้าน) ───────────────────
+
+function PromptPaySettingsCard() {
+  const [value, setValue] = useState('');
+  const [saved, setSaved] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiJson<{ promptpayId: string | null }>('/org/settings')
+      .then((s) => {
+        setSaved(s.promptpayId);
+        setValue(s.promptpayId ?? '');
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  const save = async () => {
+    setBusy(true);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await postJson<{ promptpayId: string | null }>('/org/settings', {
+        promptpayId: value,
+      });
+      setSaved(res.promptpayId);
+      setValue(res.promptpayId ?? '');
+      setMsg(res.promptpayId ? 'บันทึกแล้ว — QR รับเงินจะขึ้นตอนปิดการขาย' : 'ปิดการแสดง QR รับเงินแล้ว');
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="glass p-4">
+      <div className="flex items-center gap-2 mb-2">
+        <Wallet className="w-4 h-4 text-neon-cyan" />
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide flex-1">
+          รับเงินด้วย PromptPay
+        </h3>
+        {saved && (
+          <span className="text-[10px] px-2 py-0.5 rounded-full border text-emerald-300 border-emerald-400/40 bg-emerald-500/10">
+            เปิดใช้อยู่
+          </span>
+        )}
+      </div>
+      <p className="text-xs text-slate-500 mb-2">
+        ใส่พร้อมเพย์ของร้าน (เบอร์มือถือ / เลขบัตรประชาชน / e-Wallet) — ระบบจะแสดง QR
+        พร้อมยอดบิลให้ลูกค้าสแกนตอนปิดการขาย เงินเข้าบัญชีร้านตรง ไม่ผ่านคนกลาง · เว้นว่างเพื่อปิด
+      </p>
+      <div className="flex gap-2">
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="เช่น 081-234-5678"
+          className="flex-1 bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm font-mono text-slate-100 focus:border-neon-cyan/50 focus:outline-none"
+        />
+        <button onClick={save} disabled={busy} className="btn-primary py-2 px-4 text-sm disabled:opacity-40">
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : 'บันทึก'}
+        </button>
+      </div>
+      {msg && <p className="mt-2 text-xs text-emerald-300">{msg}</p>}
+      {err && <p className="mt-2 text-xs text-rose-300">{err}</p>}
     </div>
   );
 }

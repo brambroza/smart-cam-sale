@@ -123,3 +123,41 @@ describe('OrgsService.setCameraEnabled / isCameraEnabled', () => {
     expect(res.cameraEnabled).toBe(false);
   });
 });
+
+describe('OrgsService PromptPay settings', () => {
+  it('normalizes and stores a phone-format id, and clears on empty input', async () => {
+    const prisma = prismaMock();
+    const svc = new OrgsService(prisma);
+    await expect(svc.setPromptPayId('org1', '081-234-5678')).resolves.toEqual({
+      ok: true,
+      promptpayId: '0812345678',
+    });
+    expect(prisma.organization.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'org1' }, data: { promptpayId: '0812345678' } }),
+    );
+    await expect(svc.setPromptPayId('org1', '  ')).resolves.toEqual({
+      ok: true,
+      promptpayId: null,
+    });
+  });
+
+  it('rejects malformed PromptPay ids', async () => {
+    const svc = new OrgsService(prismaMock());
+    await expect(svc.setPromptPayId('org1', '12345')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('getSettings returns only the admin-safe fields', async () => {
+    const prisma = prismaMock();
+    (prisma.organization.findUnique as jest.Mock).mockResolvedValue({
+      name: 'ร้าน A',
+      cameraEnabled: false,
+      promptpayId: '0812345678',
+    });
+    const svc = new OrgsService(prisma);
+    await expect(svc.getSettings('org1')).resolves.toEqual({
+      name: 'ร้าน A',
+      cameraEnabled: false,
+      promptpayId: '0812345678',
+    });
+  });
+});

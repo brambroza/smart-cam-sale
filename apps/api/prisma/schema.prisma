@@ -34,6 +34,8 @@ model Organization {
   plan          String   @default("pilot") // pilot | standard | suspended
   // false = Lite tier: phone-lookup only, camera/bridge features refused
   cameraEnabled Boolean  @default(true)
+  // PromptPay target for the payment QR at sale close (phone/citizen/e-wallet)
+  promptpayId   String?
   bridgeToken   String   @unique
   pricePerStore Float    @default(2500) // THB/สาขา/เดือน — ต่อรองรายลูกค้าได้
   createdAt     DateTime @default(now())

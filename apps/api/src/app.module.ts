@@ -22,6 +22,7 @@ import { ConsentController } from './consent/consent.controller';
 import { PosController } from './pos/pos.controller';
 import { PosService } from './pos/pos.service';
 import { OrgsController } from './orgs/orgs.controller';
+import { OrgSettingsController } from './orgs/org-settings.controller';
 import { OrgsService } from './orgs/orgs.service';
 import { StoresController } from './stores/stores.controller';
 import { StoresService } from './stores/stores.service';
@@ -57,6 +58,7 @@ if (!jwtSecret) {
     ConsentController,
     PosController,
     OrgsController,
+    OrgSettingsController,
     StoresController,
     BillingController,
   ],

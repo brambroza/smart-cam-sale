@@ -59,6 +59,22 @@ body {
   }
 }
 
+/* Receipt/day-close printing: hide the app, show only the print portal */
+.print-only {
+  display: none;
+}
+@media print {
+  body {
+    background: #fff !important;
+  }
+  #root {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+
 .shimmer {
   background-image: linear-gradient(
     90deg,
