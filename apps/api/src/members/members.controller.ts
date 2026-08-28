@@ -14,7 +14,7 @@ interface EnrollBody {
   consentVersion?: string;
 }
 
-type AuthedRequest = { user?: JwtPayload };
+type AuthedRequest = { user: JwtPayload };
 
 function staffOf(req: AuthedRequest): StaffRef | undefined {
   return req.user ? { id: req.user.sub, username: req.user.username } : undefined;
@@ -25,28 +25,28 @@ export class MembersController {
   constructor(private readonly svc: MembersService) {}
 
   @Get('stats')
-  stats() {
-    return this.svc.stats();
+  stats(@Req() req: AuthedRequest) {
+    return this.svc.stats(req.user.orgId);
   }
 
   @Get()
-  list(@Query('take') take?: string) {
-    return this.svc.list(Number(take) || 20);
+  list(@Query('take') take: string | undefined, @Req() req: AuthedRequest) {
+    return this.svc.list(Number(take) || 20, req.user.orgId);
   }
 
   @Get(':id')
-  detail(@Param('id') id: string) {
-    return this.svc.detail(id);
+  detail(@Param('id') id: string, @Req() req: AuthedRequest) {
+    return this.svc.detail(id, req.user.orgId);
   }
 
   @Get(':id/consents')
-  consents(@Param('id') id: string) {
-    return this.svc.consents(id);
+  consents(@Param('id') id: string, @Req() req: AuthedRequest) {
+    return this.svc.consents(id, req.user.orgId);
   }
 
   @Post('enroll')
   enroll(@Body() body: EnrollBody, @Req() req: AuthedRequest) {
-    return this.svc.enroll({ ...body, staff: staffOf(req) });
+    return this.svc.enroll({ ...body, staff: staffOf(req), orgId: req.user.orgId });
   }
 
   @Post(':id/face')
@@ -55,7 +55,7 @@ export class MembersController {
     @Body() body: { embedding: number[]; consentAccepted?: boolean; consentVersion?: string },
     @Req() req: AuthedRequest,
   ) {
-    return this.svc.registerFace(id, body.embedding, {
+    return this.svc.registerFace(id, body.embedding, req.user.orgId, {
       consentAccepted: body.consentAccepted,
       consentVersion: body.consentVersion,
       staff: staffOf(req),
@@ -64,6 +64,6 @@ export class MembersController {
 
   @Delete(':id/face')
   removeFace(@Param('id') id: string, @Req() req: AuthedRequest) {
-    return this.svc.removeFace(id, staffOf(req));
+    return this.svc.removeFace(id, req.user.orgId, staffOf(req));
   }
 }

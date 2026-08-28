@@ -15,9 +15,11 @@ function prismaMock() {
       findMany: jest.fn(),
     },
     member: {
-      findUnique: jest.fn().mockImplementation(({ where }: any) =>
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
         Promise.resolve(
-          where.id === 'm1' || where.phone === '0812345678' ? MEMBER : null,
+          where.orgId === 'org1' && (where.id === 'm1' || where.phone === '0812345678')
+            ? MEMBER
+            : null,
         ),
       ),
       update: jest.fn().mockImplementation(({ data }: any) =>
@@ -25,8 +27,12 @@ function prismaMock() {
       ),
     },
     product: {
-      findUnique: jest.fn().mockImplementation(({ where }: any) =>
-        Promise.resolve(where.sku === KNOWN.sku || where.id === KNOWN.id ? KNOWN : null),
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          where.orgId === 'org1' && (where.sku === KNOWN.sku || where.id === KNOWN.id)
+            ? KNOWN
+            : null,
+        ),
       ),
       create: jest.fn().mockImplementation(({ data }: any) =>
         Promise.resolve({ id: 'auto1', ...data }),
@@ -69,6 +75,7 @@ describe('PosService.recordSale', () => {
     const res = await svc.recordSale(
       { memberPhone: '0899999999', items: [{ barcode: KNOWN.sku, qty: 1 }] },
       'main',
+      'org1',
     );
     expect(res).toMatchObject({ recorded: false, reason: 'member_not_found' });
   });
@@ -82,6 +89,7 @@ describe('PosService.recordSale', () => {
         items: [{ barcode: KNOWN.sku, qty: 3, price: 12 }], // POS promo price wins
       },
       'branch-2',
+      'org1',
     );
     expect(res.recorded).toBe(true);
     expect(res.total).toBe(36);
@@ -99,6 +107,7 @@ describe('PosService.recordSale', () => {
         items: [{ barcode: 'new-sku', name: 'ของใหม่', price: 25, qty: 2 }],
       },
       'main',
+      'org1',
     );
     expect(res.recorded).toBe(true);
     expect(prisma.product.create).toHaveBeenCalledWith(
@@ -112,17 +121,27 @@ describe('PosService.recordSale', () => {
   it('rejects an unknown barcode without name+price to create from', async () => {
     const svc = new PosService(prismaMock());
     await expect(
-      svc.recordSale({ memberId: 'm1', items: [{ barcode: 'mystery', qty: 1 }] }, 'main'),
+      svc.recordSale({ memberId: 'm1', items: [{ barcode: 'mystery', qty: 1 }] }, 'main', 'org1'),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects bad qty and empty items', async () => {
     const svc = new PosService(prismaMock());
-    await expect(svc.recordSale({ memberId: 'm1', items: [] }, 'main')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
     await expect(
-      svc.recordSale({ memberId: 'm1', items: [{ barcode: KNOWN.sku, qty: 0 }] }, 'main'),
+      svc.recordSale({ memberId: 'm1', items: [] }, 'main', 'org1'),
     ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      svc.recordSale({ memberId: 'm1', items: [{ barcode: KNOWN.sku, qty: 0 }] }, 'main', 'org1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('TENANT ISOLATION: a valid member phone from another org is not matched', async () => {
+    const svc = new PosService(prismaMock());
+    const res = await svc.recordSale(
+      { memberPhone: '0812345678', items: [{ barcode: KNOWN.sku, qty: 1 }] },
+      'main',
+      'org-OTHER',
+    );
+    expect(res).toMatchObject({ recorded: false, reason: 'member_not_found' });
   });
 });

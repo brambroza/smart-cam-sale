@@ -139,7 +139,7 @@ function Console({ onLogout }: { onLogout: () => void }) {
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
-          {user?.role === 'admin' && (
+          {(user?.role === 'admin' || user?.role === 'superadmin') && (
             <button
               onClick={() => setBackOfficeOpen(true)}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border bg-violet-500/10 text-violet-300 border-violet-400/30 hover:border-violet-400/60 transition"

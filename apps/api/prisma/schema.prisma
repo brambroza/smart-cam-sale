@@ -25,12 +25,24 @@ enum Gender {
   unknown
 }
 
+// Tenant root. Every business object below carries orgId — data never crosses
+// organizations. bridgeToken authenticates that org's camera bridges.
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  plan        String   @default("pilot") // pilot | standard | suspended
+  bridgeToken String   @unique
+  createdAt   DateTime @default(now())
+}
+
 model Member {
   id           String         @id @default(cuid())
+  orgId        String
   fullName     String
   displayName  String
-  phone        String?        @unique
-  email        String?        @unique
+  phone        String?
+  email        String?
   gender       Gender         @default(unknown)
   birthYear    Int?
   tier         MembershipTier @default(bronze)
@@ -42,7 +54,10 @@ model Member {
   faceEmbeddings FaceEmbedding[]
   consents     ConsentRecord[]
 
+  @@unique([orgId, phone])
+  @@unique([orgId, email])
   @@index([tier])
+  @@index([orgId])
 }
 
 model FaceEmbedding {
@@ -57,9 +72,10 @@ model FaceEmbedding {
 
 model Product {
   id          String     @id @default(cuid())
+  orgId       String
   name        String
   category    String
-  sku         String?    @unique // barcode/SKU — key used to match items from POS
+  sku         String?    // barcode/SKU — key used to match items from POS
   price       Float
   imageUrl    String?
   targetGender Gender    @default(unknown)
@@ -69,11 +85,14 @@ model Product {
   active      Boolean    @default(true)
   purchases   PurchaseItem[]
 
+  @@unique([orgId, sku])
   @@index([category])
+  @@index([orgId])
 }
 
 model Purchase {
   id         String         @id @default(cuid())
+  orgId      String
   memberId   String
   member     Member         @relation(fields: [memberId], references: [id], onDelete: Cascade)
   total      Float
@@ -82,6 +101,7 @@ model Purchase {
   items      PurchaseItem[]
 
   @@index([memberId, boughtAt])
+  @@index([orgId, boughtAt])
 }
 
 model PurchaseItem {
@@ -100,25 +120,32 @@ model PurchaseItem {
 // creation; only its sha256 lands in the DB.
 model PosApiKey {
   id         String    @id @default(cuid())
+  orgId      String
   name       String // e.g. "POS สาขาลาดพร้าว"
   keyHash    String    @unique
   storeCode  String    @default("main")
   enabled    Boolean   @default(true)
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
+
+  @@index([orgId])
 }
 
 model StaffUser {
   id           String   @id @default(cuid())
-  username     String   @unique
+  orgId        String
+  username     String   @unique // global — login does not ask for the org
   passwordHash String
   displayName  String
-  role         String   @default("staff") // staff | admin
+  role         String   @default("staff") // staff | admin (org owner) | superadmin (platform)
   createdAt    DateTime @default(now())
+
+  @@index([orgId])
 }
 
 model Camera {
   id         String   @id @default(cuid())
+  orgId      String
   name       String
   brand      String   // hikvision | dahua | imou | tapo | xiaomi_hack | reolink | ezviz | uniview | generic
   model      String?  // free-text model name shown in UI
@@ -128,18 +155,21 @@ model Camera {
   password   String   // AES-256-GCM (`enc:v1:` prefix) — decrypted only for the bridge endpoint
   streamPath String?  // resolved from brand profile, or custom for generic
   quality    String   @default("sub") // main | sub
-  channel    String   @unique // ws channel viewers subscribe to
+  channel    String   // ws channel viewers subscribe to (unique within the org)
   bridgeId   String   @default("default") // which bridge agent pulls this camera
   enabled    Boolean  @default(true)
   createdAt  DateTime @default(now())
 
+  @@unique([orgId, channel])
   @@index([bridgeId, enabled])
+  @@index([orgId])
 }
 
 // PDPA evidence trail for biometric consent (มาตรา 26). memberId is SetNull on
 // member deletion so the record that consent was withdrawn survives erasure.
 model ConsentRecord {
   id            String   @id @default(cuid())
+  orgId         String
   memberId      String?
   member        Member?  @relation(fields: [memberId], references: [id], onDelete: SetNull)
   action        String   // granted | withdrawn
@@ -152,10 +182,12 @@ model ConsentRecord {
   createdAt     DateTime @default(now())
 
   @@index([memberId, createdAt])
+  @@index([orgId])
 }
 
 model VisitLog {
   id           String   @id @default(cuid())
+  orgId        String
   memberId     String?
   matchedFace  Boolean  @default(false)
   estimatedAge Int?
@@ -165,4 +197,5 @@ model VisitLog {
   visitedAt    DateTime @default(now())
 
   @@index([visitedAt])
+  @@index([orgId, visitedAt])
 }

@@ -7,7 +7,8 @@ export interface AuthUser {
   id: string;
   username: string;
   displayName: string;
-  role: string;
+  role: string; // staff | admin | superadmin
+  orgId?: string;
 }
 
 export function getToken(): string | null {

@@ -7,14 +7,22 @@ import {
   Param,
   Patch,
   Post,
+  Req,
   UnauthorizedException,
 } from '@nestjs/common';
 import { CamerasService, CameraInput } from './cameras.service';
+import { OrgsService } from '../orgs/orgs.service';
 import { Public } from '../auth/public.decorator';
+import type { JwtPayload } from '../auth/auth.service';
+
+type AuthedRequest = { user: JwtPayload };
 
 @Controller('cameras')
 export class CamerasController {
-  constructor(private readonly svc: CamerasService) {}
+  constructor(
+    private readonly svc: CamerasService,
+    private readonly orgs: OrgsService,
+  ) {}
 
   @Get('profiles')
   profiles() {
@@ -22,36 +30,35 @@ export class CamerasController {
   }
 
   @Get()
-  list() {
-    return this.svc.list();
+  list(@Req() req: AuthedRequest) {
+    return this.svc.list(req.user.orgId);
   }
 
   @Post()
-  create(@Body() body: CameraInput) {
-    return this.svc.create(body);
+  create(@Body() body: CameraInput, @Req() req: AuthedRequest) {
+    return this.svc.create(body, req.user.orgId);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: Partial<CameraInput>) {
-    return this.svc.update(id, body);
+  update(@Param('id') id: string, @Body() body: Partial<CameraInput>, @Req() req: AuthedRequest) {
+    return this.svc.update(id, body, req.user.orgId);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.svc.remove(id);
+  remove(@Param('id') id: string, @Req() req: AuthedRequest) {
+    return this.svc.remove(id, req.user.orgId);
   }
 
-  /** Bridge agents pull their camera list (with credentials) here — guarded by BRIDGE_TOKEN, not JWT. */
+  /** Bridge agents pull their camera list (with credentials) here — authenticated
+   *  by the org's bridgeToken (x-bridge-token), not a staff JWT. */
   @Public()
   @Get('bridge/:bridgeId')
-  bridgeConfig(
+  async bridgeConfig(
     @Param('bridgeId') bridgeId: string,
     @Headers('x-bridge-token') token?: string,
   ) {
-    const required = process.env.BRIDGE_TOKEN;
-    if (required && token !== required) {
-      throw new UnauthorizedException('invalid bridge token');
-    }
-    return this.svc.bridgeConfig(bridgeId);
+    const org = await this.orgs.resolveBridgeToken(token);
+    if (!org) throw new UnauthorizedException('invalid bridge token');
+    return this.svc.bridgeConfig(bridgeId, org.orgId);
   }
 }

@@ -7,7 +7,10 @@ export interface JwtPayload {
   sub: string;
   username: string;
   role: string;
+  orgId: string;
 }
+
+export const DEFAULT_ORG_ID = 'org_default';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -28,11 +31,12 @@ export class AuthService implements OnModuleInit {
         username: 'admin',
         passwordHash: await bcrypt.hash(initialPassword, 10),
         displayName: 'Administrator',
-        role: 'admin',
+        role: 'superadmin',
+        orgId: DEFAULT_ORG_ID,
       },
     });
     this.logger.warn(
-      `สร้างบัญชี admin เริ่มต้นแล้ว (username: admin) — ` +
+      `สร้างบัญชี admin เริ่มต้นแล้ว (username: admin, role: superadmin) — ` +
         (process.env.ADMIN_INITIAL_PASSWORD
           ? 'ใช้รหัสจาก ADMIN_INITIAL_PASSWORD'
           : '⚠️ รหัสเริ่มต้น "admin1234" — เปลี่ยนทันทีผ่าน POST /auth/change-password'),
@@ -44,10 +48,21 @@ export class AuthService implements OnModuleInit {
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
     }
-    const payload: JwtPayload = { sub: user.id, username: user.username, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      username: user.username,
+      role: user.role,
+      orgId: user.orgId,
+    };
     return {
       accessToken: await this.jwt.signAsync(payload),
-      user: { id: user.id, username: user.username, displayName: user.displayName, role: user.role },
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        role: user.role,
+        orgId: user.orgId,
+      },
     };
   }
 
@@ -70,10 +85,11 @@ export class AuthService implements OnModuleInit {
     return this.jwt.verifyAsync<JwtPayload>(token);
   }
 
-  // ── staff management (admin only, enforced at controller) ──
+  // ── staff management (admin only, enforced at controller; scoped to the org) ──
 
-  listUsers() {
+  listUsers(orgId: string) {
     return this.prisma.staffUser.findMany({
+      where: { orgId },
       orderBy: { createdAt: 'asc' },
       select: { id: true, username: true, displayName: true, role: true, createdAt: true },
     });
@@ -84,6 +100,7 @@ export class AuthService implements OnModuleInit {
     password: string;
     displayName: string;
     role?: string;
+    orgId: string;
   }) {
     const username = input.username?.trim().toLowerCase();
     if (!username || !/^[a-z0-9_.-]{3,32}$/.test(username)) {
@@ -100,6 +117,7 @@ export class AuthService implements OnModuleInit {
         passwordHash: await bcrypt.hash(input.password, 10),
         displayName: input.displayName?.trim() || username,
         role: input.role === 'admin' ? 'admin' : 'staff',
+        orgId: input.orgId,
       },
       select: { id: true, username: true, displayName: true, role: true, createdAt: true },
     });
@@ -107,10 +125,12 @@ export class AuthService implements OnModuleInit {
   }
 
   /** Admin reset of another user's password (no current-password check). */
-  async resetPassword(userId: string, newPassword: string) {
+  async resetPassword(userId: string, newPassword: string, orgId: string) {
     if (!newPassword || newPassword.length < 8) {
       throw new UnauthorizedException('รหัสผ่านใหม่ต้องยาวอย่างน้อย 8 ตัวอักษร');
     }
+    const target = await this.prisma.staffUser.findFirst({ where: { id: userId, orgId } });
+    if (!target) throw new UnauthorizedException('ไม่พบบัญชีนี้');
     await this.prisma.staffUser.update({
       where: { id: userId },
       data: { passwordHash: await bcrypt.hash(newPassword, 10) },
@@ -118,15 +138,17 @@ export class AuthService implements OnModuleInit {
     return { ok: true };
   }
 
-  async deleteUser(userId: string, requesterId: string) {
+  async deleteUser(userId: string, requesterId: string, orgId: string) {
     if (userId === requesterId) {
       throw new UnauthorizedException('ลบบัญชีตัวเองไม่ได้');
     }
-    const admins = await this.prisma.staffUser.count({ where: { role: 'admin' } });
-    const target = await this.prisma.staffUser.findUnique({ where: { id: userId } });
+    const target = await this.prisma.staffUser.findFirst({ where: { id: userId, orgId } });
     if (!target) throw new UnauthorizedException('ไม่พบบัญชีนี้');
-    if (target.role === 'admin' && admins <= 1) {
-      throw new UnauthorizedException('ต้องเหลือ admin อย่างน้อย 1 บัญชี');
+    if (target.role !== 'staff') {
+      const admins = await this.prisma.staffUser.count({
+        where: { orgId, role: { in: ['admin', 'superadmin'] } },
+      });
+      if (admins <= 1) throw new UnauthorizedException('ต้องเหลือ admin อย่างน้อย 1 บัญชี');
     }
     await this.prisma.staffUser.delete({ where: { id: userId } });
     return { ok: true };

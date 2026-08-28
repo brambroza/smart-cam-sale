@@ -5,9 +5,14 @@ import { PRODUCTS } from './products-seed';
 // or face embeddings. Safe to run on a live database.
 const prisma = new PrismaClient();
 
+const ORG_ID = process.env.SEED_ORG_ID ?? 'org_default';
+
 async function main() {
-  console.log('🛒 Refreshing product catalog…');
-  const existing = await prisma.product.findMany({ select: { name: true } });
+  console.log(`🛒 Refreshing product catalog… (org: ${ORG_ID})`);
+  const existing = await prisma.product.findMany({
+    where: { orgId: ORG_ID },
+    select: { name: true },
+  });
   const existingNames = new Set(existing.map((p) => p.name));
 
   const fresh = PRODUCTS.filter((p) => !existingNames.has(p.name));
@@ -15,7 +20,7 @@ async function main() {
     console.log('✔ ไม่มีสินค้าใหม่ให้เพิ่ม');
     return;
   }
-  await prisma.product.createMany({ data: fresh });
+  await prisma.product.createMany({ data: fresh.map((p) => ({ ...p, orgId: ORG_ID })) });
   console.log(`✔ เพิ่มสินค้าใหม่ ${fresh.length} รายการ (รวมทั้งหมด ${existing.length + fresh.length})`);
 }
 

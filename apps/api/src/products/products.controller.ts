@@ -1,6 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { ProductsService, ProductInput } from './products.service';
 import { AdminOnly } from '../auth/admin.decorator';
+import type { JwtPayload } from '../auth/auth.service';
+
+type AuthedRequest = { user: JwtPayload };
 
 @Controller('products')
 export class ProductsController {
@@ -8,27 +11,28 @@ export class ProductsController {
 
   @Get()
   list(
+    @Req() req: AuthedRequest,
     @Query('q') q?: string,
     @Query('category') category?: string,
     @Query('all') all?: string,
   ) {
-    return this.svc.list(q, category, all === '1');
+    return this.svc.list(req.user.orgId, q, category, all === '1');
   }
 
   @Get('categories')
-  categories() {
-    return this.svc.categories();
+  categories(@Req() req: AuthedRequest) {
+    return this.svc.categories(req.user.orgId);
   }
 
   @AdminOnly()
   @Post()
-  create(@Body() body: ProductInput) {
-    return this.svc.create(body);
+  create(@Body() body: ProductInput, @Req() req: AuthedRequest) {
+    return this.svc.create(body, req.user.orgId);
   }
 
   @AdminOnly()
   @Patch(':id')
-  update(@Param('id') id: string, @Body() body: Partial<ProductInput>) {
-    return this.svc.update(id, body);
+  update(@Param('id') id: string, @Body() body: Partial<ProductInput>, @Req() req: AuthedRequest) {
+    return this.svc.update(id, body, req.user.orgId);
   }
 }

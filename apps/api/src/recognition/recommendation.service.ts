@@ -8,7 +8,7 @@ type Tod = 'morning' | 'afternoon' | 'evening' | 'night';
 export class RecommendationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async forMember(memberId: string, tod: Tod): Promise<RecommendedProduct[]> {
+  async forMember(memberId: string, tod: Tod, orgId: string): Promise<RecommendedProduct[]> {
     const since = new Date(Date.now() - 90 * 86400000);
     const history = await this.prisma.purchase.findMany({
       where: { memberId, boughtAt: { gte: since } },
@@ -44,19 +44,22 @@ export class RecommendationService {
     // basket affinity: products bought together
     const productIds = Array.from(scored.keys());
     if (productIds.length) {
+      // co-purchase stats stay inside the org — no cross-tenant signal leak
       const co = await this.prisma.$queryRawUnsafe<{ productId: string; count: bigint }[]>(
         `SELECT pi2."productId", COUNT(*)::bigint AS count
          FROM "PurchaseItem" pi1
          JOIN "PurchaseItem" pi2 ON pi1."purchaseId" = pi2."purchaseId" AND pi1."productId" <> pi2."productId"
-         WHERE pi1."productId" = ANY($1::text[])
+         JOIN "Purchase" pu ON pu."id" = pi1."purchaseId"
+         WHERE pi1."productId" = ANY($1::text[]) AND pu."orgId" = $2
          GROUP BY pi2."productId"
          ORDER BY count DESC
          LIMIT 5`,
         productIds,
+        orgId,
       );
       for (const r of co) {
         if (scored.has(r.productId)) continue;
-        const prod = await this.prisma.product.findUnique({ where: { id: r.productId } });
+        const prod = await this.prisma.product.findFirst({ where: { id: r.productId, orgId } });
         if (!prod) continue;
         scored.set(r.productId, {
           name: prod.name,
@@ -83,9 +86,10 @@ export class RecommendationService {
       }));
   }
 
-  async forGuest(age: number, gender: string, tod: Tod): Promise<RecommendedProduct[]> {
+  async forGuest(age: number, gender: string, tod: Tod, orgId: string): Promise<RecommendedProduct[]> {
     const products = await this.prisma.product.findMany({
       where: {
+        orgId,
         active: true,
         AND: [
           { OR: [{ targetGender: gender as any }, { targetGender: 'unknown' }] },

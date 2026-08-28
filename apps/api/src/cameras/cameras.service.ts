@@ -68,25 +68,33 @@ export class CamerasService implements OnModuleInit {
   }
 
   /** List for the UI — passwords redacted. */
-  async list() {
-    const cams = await this.prisma.camera.findMany({ orderBy: { createdAt: 'asc' } });
+  async list(orgId: string) {
+    const cams = await this.prisma.camera.findMany({
+      where: { orgId },
+      orderBy: { createdAt: 'asc' },
+    });
     return cams.map(({ password, ...rest }) => ({ ...rest, hasPassword: password.length > 0 }));
   }
 
-  async create(input: CameraInput) {
+  async create(input: CameraInput, orgId: string) {
     if (!BRAND_PROFILES[input.brand]) throw new BadRequestException(`unknown brand: ${input.brand}`);
     if (input.brand === 'generic' && !input.streamPath)
       throw new BadRequestException('generic camera requires streamPath');
 
     const base = slugify(input.name);
     let channel = base;
-    for (let i = 2; await this.prisma.camera.findUnique({ where: { channel } }); i++) {
+    for (
+      let i = 2;
+      await this.prisma.camera.findFirst({ where: { orgId, channel } });
+      i++
+    ) {
       channel = `${base}-${i}`;
     }
 
     const profile = BRAND_PROFILES[input.brand]!;
     const cam = await this.prisma.camera.create({
       data: {
+        orgId,
         name: input.name,
         brand: input.brand,
         model: input.model,
@@ -105,8 +113,8 @@ export class CamerasService implements OnModuleInit {
     return rest;
   }
 
-  async update(id: string, input: Partial<CameraInput>) {
-    const existing = await this.prisma.camera.findUnique({ where: { id } });
+  async update(id: string, input: Partial<CameraInput>, orgId: string) {
+    const existing = await this.prisma.camera.findFirst({ where: { id, orgId } });
     if (!existing) throw new NotFoundException('camera not found');
     const cam = await this.prisma.camera.update({
       where: { id },
@@ -129,10 +137,10 @@ export class CamerasService implements OnModuleInit {
     return rest;
   }
 
-  async remove(id: string) {
-    await this.prisma.camera.delete({ where: { id } }).catch(() => {
-      throw new NotFoundException('camera not found');
-    });
+  async remove(id: string, orgId: string) {
+    const existing = await this.prisma.camera.findFirst({ where: { id, orgId } });
+    if (!existing) throw new NotFoundException('camera not found');
+    await this.prisma.camera.delete({ where: { id } });
     return { ok: true };
   }
 
@@ -140,9 +148,9 @@ export class CamerasService implements OnModuleInit {
    * Bridge agent endpoint — returns full RTSP URLs (credentials included).
    * Guarded by BRIDGE_TOKEN when set.
    */
-  async bridgeConfig(bridgeId: string) {
+  async bridgeConfig(bridgeId: string, orgId: string) {
     const cams = await this.prisma.camera.findMany({
-      where: { bridgeId, enabled: true },
+      where: { orgId, bridgeId, enabled: true },
       orderBy: { createdAt: 'asc' },
     });
     return cams.flatMap((c) => {

@@ -11,8 +11,9 @@ export interface StaffRef {
 export class MembersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list(take: number) {
+  list(take: number, orgId: string) {
     return this.prisma.member.findMany({
+      where: { orgId },
       take,
       orderBy: { memberSince: 'desc' },
       select: {
@@ -29,9 +30,9 @@ export class MembersService {
     });
   }
 
-  async detail(id: string) {
-    const m = await this.prisma.member.findUnique({
-      where: { id },
+  async detail(id: string, orgId: string) {
+    const m = await this.prisma.member.findFirst({
+      where: { id, orgId },
       include: {
         purchases: {
           orderBy: { boughtAt: 'desc' },
@@ -44,12 +45,12 @@ export class MembersService {
     return m;
   }
 
-  async stats() {
+  async stats(orgId: string) {
     const since = new Date(Date.now() - 24 * 3600 * 1000);
     const [total, todayMembers, todayGuests] = await Promise.all([
-      this.prisma.member.count(),
-      this.prisma.visitLog.count({ where: { visitedAt: { gte: since }, matchedFace: true } }),
-      this.prisma.visitLog.count({ where: { visitedAt: { gte: since }, matchedFace: false } }),
+      this.prisma.member.count({ where: { orgId } }),
+      this.prisma.visitLog.count({ where: { orgId, visitedAt: { gte: since }, matchedFace: true } }),
+      this.prisma.visitLog.count({ where: { orgId, visitedAt: { gte: since }, matchedFace: false } }),
     ]);
     return { totalMembers: total, memberVisits24h: todayMembers, guestVisits24h: todayGuests };
   }
@@ -57,9 +58,12 @@ export class MembersService {
   async registerFace(
     memberId: string,
     embedding: number[],
+    orgId: string,
     opts?: { consentAccepted?: boolean; consentVersion?: string; staff?: StaffRef },
   ) {
     if (embedding.length !== 512) throw new NotFoundException('embedding must be 512-d');
+    const owned = await this.prisma.member.findFirst({ where: { id: memberId, orgId } });
+    if (!owned) throw new NotFoundException('ไม่พบสมาชิกในองค์กรนี้');
     if (!opts?.consentAccepted || opts.consentVersion !== CONSENT_VERSION) {
       throw new BadRequestException('ต้องได้รับความยินยอม (เวอร์ชันปัจจุบัน) ก่อนบันทึกใบหน้า');
     }
@@ -71,7 +75,7 @@ export class MembersService {
       vec,
     );
     await this.prisma.member.update({ where: { id: memberId }, data: { faceOptIn: true } });
-    await this.recordConsent(memberId, 'granted', opts.staff);
+    await this.recordConsent(memberId, 'granted', orgId, opts.staff);
     return { ok: true };
   }
 
@@ -86,6 +90,7 @@ export class MembersService {
     consentAccepted?: boolean;
     consentVersion?: string;
     staff?: StaffRef;
+    orgId: string;
   }) {
     if (!input.embedding || input.embedding.length !== 512) {
       throw new NotFoundException('embedding must be 512-d');
@@ -100,6 +105,7 @@ export class MembersService {
     }
     const member = await this.prisma.member.create({
       data: {
+        orgId: input.orgId,
         fullName: input.fullName,
         displayName: input.displayName,
         gender: (input.gender ?? 'unknown') as any,
@@ -118,28 +124,36 @@ export class MembersService {
       member.id,
       vec,
     );
-    await this.recordConsent(member.id, 'granted', input.staff);
+    await this.recordConsent(member.id, 'granted', input.orgId, input.staff);
     return { ok: true, memberId: member.id, welcomePoints: 100 };
   }
 
-  async removeFace(memberId: string, staff?: StaffRef) {
+  async removeFace(memberId: string, orgId: string, staff?: StaffRef) {
+    const owned = await this.prisma.member.findFirst({ where: { id: memberId, orgId } });
+    if (!owned) throw new NotFoundException('ไม่พบสมาชิกในองค์กรนี้');
     await this.prisma.faceEmbedding.deleteMany({ where: { memberId } });
     await this.prisma.member.update({ where: { id: memberId }, data: { faceOptIn: false } });
-    await this.recordConsent(memberId, 'withdrawn', staff);
+    await this.recordConsent(memberId, 'withdrawn', orgId, staff);
     return { ok: true };
   }
 
   /** PDPA evidence: who consented/withdrew, when, under which policy text. */
-  consents(memberId: string) {
+  consents(memberId: string, orgId: string) {
     return this.prisma.consentRecord.findMany({
-      where: { memberId },
+      where: { memberId, orgId },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  private recordConsent(memberId: string, action: 'granted' | 'withdrawn', staff?: StaffRef) {
+  private recordConsent(
+    memberId: string,
+    action: 'granted' | 'withdrawn',
+    orgId: string,
+    staff?: StaffRef,
+  ) {
     return this.prisma.consentRecord.create({
       data: {
+        orgId,
         memberId,
         action,
         purpose: CONSENT_PURPOSE,

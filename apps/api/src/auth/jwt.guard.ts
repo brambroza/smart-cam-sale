@@ -8,7 +8,7 @@ import {
 import { Reflector } from '@nestjs/core';
 import { AuthService, JwtPayload } from './auth.service';
 import { IS_PUBLIC_KEY } from './public.decorator';
-import { ADMIN_ONLY_KEY } from './admin.decorator';
+import { ADMIN_ONLY_KEY, SUPERADMIN_ONLY_KEY } from './admin.decorator';
 
 /** Global HTTP guard — every REST route requires a Bearer JWT unless @Public(). */
 @Injectable()
@@ -42,11 +42,19 @@ export class JwtAuthGuard implements CanActivate {
     }
     req.user = payload;
 
+    const superadminOnly = this.reflector.getAllAndOverride<boolean>(SUPERADMIN_ONLY_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (superadminOnly && payload.role !== 'superadmin') {
+      throw new ForbiddenException('เฉพาะผู้ดูแลแพลตฟอร์ม (superadmin) เท่านั้น');
+    }
+
     const adminOnly = this.reflector.getAllAndOverride<boolean>(ADMIN_ONLY_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (adminOnly && payload.role !== 'admin') {
+    if (adminOnly && payload.role !== 'admin' && payload.role !== 'superadmin') {
       throw new ForbiddenException('เฉพาะผู้ดูแลระบบ (admin) เท่านั้น');
     }
     return true;

@@ -31,18 +31,24 @@ export class PosService {
 
   // ── key management (admin, from the back office) ──
 
-  async createKey(name: string, storeCode?: string) {
+  async createKey(name: string, orgId: string, storeCode?: string) {
     if (!name?.trim()) throw new BadRequestException('ต้องตั้งชื่อ key (เช่น ชื่อสาขา)');
     const rawKey = `pos_${randomBytes(24).toString('hex')}`;
     const row = await this.prisma.posApiKey.create({
-      data: { name: name.trim(), keyHash: sha256Hex(rawKey), storeCode: storeCode?.trim() || 'main' },
+      data: {
+        orgId,
+        name: name.trim(),
+        keyHash: sha256Hex(rawKey),
+        storeCode: storeCode?.trim() || 'main',
+      },
     });
     // rawKey is returned exactly once — only the hash is stored
     return { id: row.id, name: row.name, storeCode: row.storeCode, apiKey: rawKey };
   }
 
-  listKeys() {
+  listKeys(orgId: string) {
     return this.prisma.posApiKey.findMany({
+      where: { orgId },
       orderBy: { createdAt: 'asc' },
       select: {
         id: true,
@@ -55,17 +61,17 @@ export class PosService {
     });
   }
 
-  async setKeyEnabled(id: string, enabled: boolean) {
-    await this.prisma.posApiKey.update({ where: { id }, data: { enabled } }).catch(() => {
-      throw new NotFoundException('ไม่พบ key นี้');
-    });
+  async setKeyEnabled(id: string, enabled: boolean, orgId: string) {
+    const key = await this.prisma.posApiKey.findFirst({ where: { id, orgId } });
+    if (!key) throw new NotFoundException('ไม่พบ key นี้');
+    await this.prisma.posApiKey.update({ where: { id }, data: { enabled } });
     return { ok: true };
   }
 
-  async deleteKey(id: string) {
-    await this.prisma.posApiKey.delete({ where: { id } }).catch(() => {
-      throw new NotFoundException('ไม่พบ key นี้');
-    });
+  async deleteKey(id: string, orgId: string) {
+    const key = await this.prisma.posApiKey.findFirst({ where: { id, orgId } });
+    if (!key) throw new NotFoundException('ไม่พบ key นี้');
+    await this.prisma.posApiKey.delete({ where: { id } });
     return { ok: true };
   }
 
@@ -90,7 +96,7 @@ export class PosService {
    * matching member are acknowledged but not recorded — the value of this
    * system is per-member history.
    */
-  async recordSale(input: PosSaleInput, storeCode: string) {
+  async recordSale(input: PosSaleInput, storeCode: string, orgId: string) {
     if (!input.items?.length) throw new BadRequestException('ต้องมีสินค้าอย่างน้อย 1 รายการ');
     for (const item of input.items) {
       if (!Number.isInteger(item.qty) || item.qty < 1 || item.qty > 99) {
@@ -101,11 +107,13 @@ export class PosService {
       }
     }
 
-    // resolve member
+    // resolve member (scoped to the key's org)
     const member = input.memberId
-      ? await this.prisma.member.findUnique({ where: { id: input.memberId } })
+      ? await this.prisma.member.findFirst({ where: { id: input.memberId, orgId } })
       : input.memberPhone
-        ? await this.prisma.member.findUnique({ where: { phone: input.memberPhone.trim() } })
+        ? await this.prisma.member.findFirst({
+            where: { phone: input.memberPhone.trim(), orgId },
+          })
         : null;
     if (!member) {
       return {
@@ -119,8 +127,8 @@ export class PosService {
     const resolved: { productId: string; price: number; qty: number }[] = [];
     for (const item of input.items) {
       let product = item.productId
-        ? await this.prisma.product.findUnique({ where: { id: item.productId } })
-        : await this.prisma.product.findUnique({ where: { sku: item.barcode! } });
+        ? await this.prisma.product.findFirst({ where: { id: item.productId, orgId } })
+        : await this.prisma.product.findFirst({ where: { sku: item.barcode!, orgId } });
       if (!product) {
         if (!item.name || !(item.price! > 0)) {
           throw new BadRequestException(
@@ -129,6 +137,7 @@ export class PosService {
         }
         product = await this.prisma.product.create({
           data: {
+            orgId,
             name: item.name.trim(),
             category: 'pos_import',
             price: item.price!,
@@ -150,6 +159,7 @@ export class PosService {
     const [purchase, updatedMember] = await this.prisma.$transaction([
       this.prisma.purchase.create({
         data: {
+          orgId,
           memberId: member.id,
           total,
           storeCode,

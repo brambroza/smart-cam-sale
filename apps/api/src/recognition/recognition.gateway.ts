@@ -9,6 +9,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { RecognitionService } from './recognition.service';
 import { AuthService } from '../auth/auth.service';
+import { OrgsService } from '../orgs/orgs.service';
 import type { FrameMessage } from '@smart-cam/shared-types';
 
 interface BridgeFrameMessage extends FrameMessage {
@@ -28,7 +29,18 @@ export class RecognitionGateway {
   constructor(
     private readonly svc: RecognitionService,
     private readonly auth: AuthService,
+    private readonly orgs: OrgsService,
   ) {}
+
+  /** Rooms are namespaced per org SERVER-SIDE — a client can never join
+   *  another org's channel by guessing its name. */
+  private room(client: Socket, channel: string) {
+    return `ch:${(client.data as { orgId?: string }).orgId}:${channel}`;
+  }
+
+  private orgOf(client: Socket): string {
+    return (client.data as { orgId?: string }).orgId ?? 'org_default';
+  }
 
   async handleConnection(client: Socket) {
     // Two identities may connect: staff consoles (JWT) and camera bridges
@@ -43,7 +55,10 @@ export class RecognitionGateway {
       try {
         const payload = await this.auth.verifyToken(token);
         (client.data as Record<string, unknown>).user = payload;
-        this.logger.log(`socket connect (staff:${payload.username}): ${client.id}`);
+        (client.data as Record<string, unknown>).orgId = payload.orgId;
+        this.logger.log(
+          `socket connect (staff:${payload.username} org:${payload.orgId}): ${client.id}`,
+        );
         return;
       } catch {
         this.logger.warn(`socket rejected — invalid JWT: ${client.id}`);
@@ -52,17 +67,17 @@ export class RecognitionGateway {
       }
     }
 
-    const required = process.env.BRIDGE_TOKEN;
-    if (bridgeToken && required && bridgeToken === required) {
+    // Bridges authenticate with their org's bridgeToken (legacy env value was
+    // adopted onto the default org at startup).
+    const org = await this.orgs.resolveBridgeToken(bridgeToken);
+    if (org) {
       (client.data as Record<string, unknown>).isBridge = true;
-      this.logger.log(`socket connect (bridge): ${client.id}`);
+      (client.data as Record<string, unknown>).orgId = org.orgId;
+      this.logger.log(`socket connect (bridge org:${org.orgId}): ${client.id}`);
       return;
     }
 
-    this.logger.warn(
-      `socket rejected — no credentials: ${client.id}` +
-        (bridgeToken && !required ? ' (bridge token sent but BRIDGE_TOKEN env not set)' : ''),
-    );
+    this.logger.warn(`socket rejected — no credentials: ${client.id}`);
     client.disconnect(true);
   }
   handleDisconnect(client: Socket) {
@@ -73,7 +88,7 @@ export class RecognitionGateway {
   /** Viewer consoles join a channel to receive frames+results from a bridge. */
   @SubscribeMessage('join_channel')
   onJoinChannel(@ConnectedSocket() client: Socket, @MessageBody() body: { channel: string }) {
-    const room = `ch:${body.channel}`;
+    const room = this.room(client, body.channel);
     client.join(room);
     this.logger.log(`socket ${client.id} joined ${room}`);
     client.emit('joined_channel', { channel: body.channel });
@@ -81,7 +96,7 @@ export class RecognitionGateway {
 
   @SubscribeMessage('leave_channel')
   onLeaveChannel(@ConnectedSocket() client: Socket, @MessageBody() body: { channel: string }) {
-    client.leave(`ch:${body.channel}`);
+    client.leave(this.room(client, body.channel));
   }
 
   @SubscribeMessage('frame')
@@ -89,13 +104,18 @@ export class RecognitionGateway {
     if (this.busy.get(client.id)) return; // drop if previous still running
     this.busy.set(client.id, true);
     try {
+      const orgId = this.orgOf(client);
       const { message, primaryEmbedding } = await this.svc.recognizeFrameWithEmbedding(
         body.imageBase64,
         body.frameId,
+        orgId,
       );
       if (primaryEmbedding) {
         this.svc.rememberEmbedding(client.id, primaryEmbedding);
-        if (body.channel) this.svc.rememberChannelEmbedding(body.channel, primaryEmbedding);
+        // channel cache is org-prefixed so viewer consoles can only reach
+        // embeddings captured inside their own org
+        if (body.channel)
+          this.svc.rememberChannelEmbedding(`${orgId}:${body.channel}`, primaryEmbedding);
       }
 
       // Reply to the sender (webcam console or bridge)
@@ -103,7 +123,7 @@ export class RecognitionGateway {
 
       // Bridge mode: fan out result + (optionally) the frame itself to viewers
       if (body.channel) {
-        const room = `ch:${body.channel}`;
+        const room = this.room(client, body.channel);
         this.server.to(room).emit('recognition', message);
         if (body.broadcastFrame) {
           this.server.to(room).emit('camera_frame', {
@@ -126,7 +146,7 @@ export class RecognitionGateway {
     // In bridge mode the embedding lives on the bridge's socket, not the viewer's.
     // Viewers pass channel; we look up the bridge socket registered for it.
     const embedding = body?.channel
-      ? this.svc.getLastChannelEmbedding(body.channel)
+      ? this.svc.getLastChannelEmbedding(`${this.orgOf(client)}:${body.channel}`)
       : this.svc.getLastEmbedding(client.id);
     client.emit('captured_embedding', { embedding: embedding ?? null });
   }

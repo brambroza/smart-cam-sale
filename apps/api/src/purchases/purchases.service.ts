@@ -13,14 +13,21 @@ const THB_PER_POINT = 10;
 export class PurchasesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(input: { memberId: string; items: PurchaseItemInput[]; storeCode?: string }) {
+  async record(
+    input: { memberId: string; items: PurchaseItemInput[]; storeCode?: string },
+    orgId: string,
+  ) {
     if (!input.items?.length) throw new BadRequestException('ต้องมีสินค้าอย่างน้อย 1 รายการ');
 
-    const member = await this.prisma.member.findUnique({ where: { id: input.memberId } });
+    const member = await this.prisma.member.findFirst({
+      where: { id: input.memberId, orgId },
+    });
     if (!member) throw new NotFoundException('ไม่พบสมาชิก');
 
     const ids = input.items.map((i) => i.productId);
-    const products = await this.prisma.product.findMany({ where: { id: { in: ids } } });
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: ids }, orgId },
+    });
     const byId = new Map(products.map((p) => [p.id, p]));
     for (const item of input.items) {
       if (!byId.has(item.productId)) {
@@ -40,6 +47,7 @@ export class PurchasesService {
     const [purchase, updatedMember] = await this.prisma.$transaction([
       this.prisma.purchase.create({
         data: {
+          orgId,
           memberId: input.memberId,
           total,
           storeCode: input.storeCode ?? 'main',
@@ -74,10 +82,10 @@ export class PurchasesService {
   }
 
   /** Back-office overview: totals per day + best sellers over the window. */
-  async summary(days = 7) {
+  async summary(orgId: string, days = 7) {
     const since = new Date(Date.now() - Math.min(Math.max(days, 1), 90) * 24 * 3600 * 1000);
     const purchases = await this.prisma.purchase.findMany({
-      where: { boughtAt: { gte: since } },
+      where: { orgId, boughtAt: { gte: since } },
       select: { total: true, boughtAt: true },
     });
     const byDay = new Map<string, { total: number; count: number }>();
@@ -90,7 +98,7 @@ export class PurchasesService {
     }
     const topItems = await this.prisma.purchaseItem.groupBy({
       by: ['productId'],
-      where: { purchase: { boughtAt: { gte: since } } },
+      where: { purchase: { orgId, boughtAt: { gte: since } } },
       _sum: { qty: true },
       orderBy: { _sum: { qty: 'desc' } },
       take: 5,
@@ -115,8 +123,9 @@ export class PurchasesService {
     };
   }
 
-  recent(take = 20) {
+  recent(orgId: string, take = 20) {
     return this.prisma.purchase.findMany({
+      where: { orgId },
       orderBy: { boughtAt: 'desc' },
       take: Math.min(take, 100),
       include: {

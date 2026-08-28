@@ -17,9 +17,10 @@ export interface ProductInput {
 export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(q?: string, category?: string, includeInactive = false) {
+  async list(orgId: string, q?: string, category?: string, includeInactive = false) {
     return this.prisma.product.findMany({
       where: {
+        orgId,
         ...(includeInactive ? {} : { active: true }),
         AND: [
           q
@@ -38,12 +39,13 @@ export class ProductsService {
     });
   }
 
-  async create(input: ProductInput) {
+  async create(input: ProductInput, orgId: string) {
     if (!input.name?.trim() || !input.category?.trim())
       throw new BadRequestException('ต้องมีชื่อสินค้าและหมวดหมู่');
     if (!(input.price > 0)) throw new BadRequestException('ราคาต้องมากกว่า 0');
     return this.prisma.product.create({
       data: {
+        orgId,
         name: input.name.trim(),
         category: input.category.trim(),
         price: input.price,
@@ -57,8 +59,8 @@ export class ProductsService {
     });
   }
 
-  async update(id: string, input: Partial<ProductInput>) {
-    const existing = await this.prisma.product.findUnique({ where: { id } });
+  async update(id: string, input: Partial<ProductInput>, orgId: string) {
+    const existing = await this.prisma.product.findFirst({ where: { id, orgId } });
     if (!existing) throw new NotFoundException('ไม่พบสินค้า');
     if (input.price !== undefined && !(input.price > 0))
       throw new BadRequestException('ราคาต้องมากกว่า 0');
@@ -78,10 +80,10 @@ export class ProductsService {
     });
   }
 
-  async categories() {
+  async categories(orgId: string) {
     const rows = await this.prisma.product.groupBy({
       by: ['category'],
-      where: { active: true },
+      where: { orgId, active: true },
       _count: { _all: true },
       orderBy: { category: 'asc' },
     });

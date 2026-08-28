@@ -10,6 +10,9 @@ function prismaMock() {
     member: {
       create: jest.fn().mockResolvedValue({ id: 'm-new' }),
       update: jest.fn().mockResolvedValue({}),
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(where.orgId === 'org1' ? { id: where.id, orgId: 'org1' } : null),
+      ),
     },
     consentRecord: {
       create: jest.fn().mockResolvedValue({ id: 'c1' }),
@@ -29,16 +32,18 @@ const BASE = {
 describe('MembersService.enroll — PDPA consent enforcement', () => {
   it('rejects enrollment without consent', async () => {
     const svc = new MembersService(prismaMock());
-    await expect(svc.enroll({ ...BASE })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(svc.enroll({ ...BASE, orgId: 'org1' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
     await expect(
-      svc.enroll({ ...BASE, consentAccepted: false, consentVersion: CONSENT_VERSION }),
+      svc.enroll({ ...BASE, orgId: 'org1', consentAccepted: false, consentVersion: CONSENT_VERSION }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects a stale consent version', async () => {
     const svc = new MembersService(prismaMock());
     await expect(
-      svc.enroll({ ...BASE, consentAccepted: true, consentVersion: '0.9-old' }),
+      svc.enroll({ ...BASE, orgId: 'org1', consentAccepted: true, consentVersion: '0.9-old' }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -47,6 +52,7 @@ describe('MembersService.enroll — PDPA consent enforcement', () => {
     const svc = new MembersService(prisma);
     const res = await svc.enroll({
       ...BASE,
+      orgId: 'org1',
       consentAccepted: true,
       consentVersion: CONSENT_VERSION,
       staff: { id: 'u1', username: 'admin' },
@@ -58,6 +64,7 @@ describe('MembersService.enroll — PDPA consent enforcement', () => {
           action: 'granted',
           policyVersion: CONSENT_VERSION,
           staffUsername: 'admin',
+          orgId: 'org1',
         }),
       }),
     );
@@ -68,7 +75,7 @@ describe('MembersService.removeFace', () => {
   it('deletes embeddings, clears opt-in, and records a withdrawal', async () => {
     const prisma = prismaMock();
     const svc = new MembersService(prisma);
-    await svc.removeFace('m1', { id: 'u1', username: 'admin' });
+    await svc.removeFace('m1', 'org1', { id: 'u1', username: 'admin' });
     expect(prisma.faceEmbedding.deleteMany).toHaveBeenCalledWith({ where: { memberId: 'm1' } });
     expect(prisma.member.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { faceOptIn: false } }),
@@ -76,5 +83,12 @@ describe('MembersService.removeFace', () => {
     expect(prisma.consentRecord.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ action: 'withdrawn' }) }),
     );
+  });
+
+  it('TENANT ISOLATION: cannot remove the face of a member in another org', async () => {
+    const svc = new MembersService(prismaMock());
+    await expect(
+      svc.removeFace('m1', 'org-OTHER', { id: 'u1', username: 'admin' }),
+    ).rejects.toBeTruthy();
   });
 });

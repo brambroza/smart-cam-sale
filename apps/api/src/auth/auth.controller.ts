@@ -26,27 +26,32 @@ export class AuthController {
 
   @AdminOnly()
   @Get('users')
-  users() {
-    return this.svc.listUsers();
+  users(@Req() req: { user: JwtPayload }) {
+    return this.svc.listUsers(req.user.orgId);
   }
 
   @AdminOnly()
   @Post('users')
   createUser(
     @Body() body: { username: string; password: string; displayName: string; role?: string },
+    @Req() req: { user: JwtPayload },
   ) {
-    return this.svc.createUser(body);
+    return this.svc.createUser({ ...body, orgId: req.user.orgId });
   }
 
   @AdminOnly()
   @Post('users/:id/reset-password')
-  resetPassword(@Param('id') id: string, @Body() body: { newPassword: string }) {
-    return this.svc.resetPassword(id, body.newPassword);
+  resetPassword(
+    @Param('id') id: string,
+    @Body() body: { newPassword: string },
+    @Req() req: { user: JwtPayload },
+  ) {
+    return this.svc.resetPassword(id, body.newPassword, req.user.orgId);
   }
 
   @AdminOnly()
   @Delete('users/:id')
   deleteUser(@Param('id') id: string, @Req() req: { user: JwtPayload }) {
-    return this.svc.deleteUser(id, req.user.sub);
+    return this.svc.deleteUser(id, req.user.sub, req.user.orgId);
   }
 }

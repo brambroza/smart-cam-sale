@@ -11,6 +11,7 @@ const ADMIN = {
   passwordHash: HASH,
   displayName: 'Administrator',
   role: 'admin',
+  orgId: 'org1',
 };
 
 function prismaMock(overrides: Partial<Record<string, unknown>> = {}) {
@@ -18,6 +19,9 @@ function prismaMock(overrides: Partial<Record<string, unknown>> = {}) {
     staffUser: {
       count: jest.fn().mockResolvedValue(1),
       findUnique: jest.fn().mockResolvedValue(ADMIN),
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(where.id === ADMIN.id && where.orgId === ADMIN.orgId ? ADMIN : null),
+      ),
       create: jest.fn().mockImplementation(({ data, select }: any) => Promise.resolve({ id: 'u2', ...data })),
       update: jest.fn().mockResolvedValue(ADMIN),
       delete: jest.fn().mockResolvedValue(ADMIN),
@@ -37,9 +41,10 @@ describe('AuthService.login', () => {
       username: 'admin',
       displayName: 'Administrator',
       role: 'admin',
+      orgId: 'org1',
     });
     const payload = await svc.verifyToken(res.accessToken);
-    expect(payload).toMatchObject({ sub: 'u1', username: 'admin', role: 'admin' });
+    expect(payload).toMatchObject({ sub: 'u1', username: 'admin', role: 'admin', orgId: 'org1' });
   });
 
   it('rejects a wrong password and an unknown user with the same error', async () => {
@@ -80,25 +85,36 @@ describe('AuthService staff management', () => {
     (prisma.staffUser.findUnique as jest.Mock).mockResolvedValue(null); // no duplicate
     const svc = new AuthService(prisma, jwt);
     await expect(
-      svc.createUser({ username: 'ab', password: 'long-enough', displayName: 'x' }),
+      svc.createUser({ username: 'ab', password: 'long-enough', displayName: 'x', orgId: 'org1' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     await expect(
-      svc.createUser({ username: 'valid.name', password: 'short', displayName: 'x' }),
+      svc.createUser({ username: 'valid.name', password: 'short', displayName: 'x', orgId: 'org1' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     const ok = await svc.createUser({
       username: 'Valid.Name',
       password: 'long-enough',
       displayName: 'พนักงานใหม่',
       role: 'superuser', // unknown role must demote to staff
+      orgId: 'org1',
     });
     expect(ok).toMatchObject({ username: 'valid.name', role: 'staff' });
   });
 
   it('blocks self-delete and deleting the last admin', async () => {
     const svc = new AuthService(prismaMock(), jwt);
-    await expect(svc.deleteUser('u1', 'u1')).rejects.toBeInstanceOf(UnauthorizedException);
-    // one admin in DB, target is that admin
-    await expect(svc.deleteUser('u1', 'someone-else')).rejects.toBeInstanceOf(
+    await expect(svc.deleteUser('u1', 'u1', 'org1')).rejects.toBeInstanceOf(UnauthorizedException);
+    // one admin in the org, target is that admin
+    await expect(svc.deleteUser('u1', 'someone-else', 'org1')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('TENANT ISOLATION: cannot reset or delete a user from another org', async () => {
+    const svc = new AuthService(prismaMock(), jwt);
+    await expect(svc.resetPassword('u1', 'long-enough', 'org-OTHER')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(svc.deleteUser('u1', 'someone-else', 'org-OTHER')).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
   });

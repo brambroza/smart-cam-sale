@@ -55,14 +55,19 @@ export class RecognitionService {
     return this.lastEmbeddingByChannel.get(channel);
   }
 
-  async recognizeFrame(imageBase64: string, frameId: string): Promise<RecognitionMessage> {
-    const { message } = await this.recognizeFrameWithEmbedding(imageBase64, frameId);
+  async recognizeFrame(
+    imageBase64: string,
+    frameId: string,
+    orgId: string,
+  ): Promise<RecognitionMessage> {
+    const { message } = await this.recognizeFrameWithEmbedding(imageBase64, frameId, orgId);
     return message;
   }
 
   async recognizeFrameWithEmbedding(
     imageBase64: string,
     frameId: string,
+    orgId: string,
   ): Promise<{ message: RecognitionMessage; primaryEmbedding?: number[] }> {
     const started = Date.now();
     const faces = await this.ai.analyze(imageBase64);
@@ -76,7 +81,7 @@ export class RecognitionService {
         bestScore = face.det_score;
         primaryEmbedding = face.embedding;
       }
-      results.push(await this.processFace(face));
+      results.push(await this.processFace(face, orgId));
     }
 
     return {
@@ -90,23 +95,24 @@ export class RecognitionService {
     };
   }
 
-  private async processFace(face: AiFace): Promise<RecognitionResult> {
+  private async processFace(face: AiFace, orgId: string): Promise<RecognitionResult> {
     const age = Math.round(face.age);
     const bucket = ageBucket(age);
     const gender = face.gender;
     const tod = timeOfDay(new Date());
 
-    const match = await this.findClosestMember(face.embedding);
+    const match = await this.findClosestMember(face.embedding, orgId);
     const faceId = `face_${Math.random().toString(36).slice(2, 10)}`;
     const capturedAt = new Date().toISOString();
 
     if (match && match.similarity >= MATCH_THRESHOLD) {
       const memberProfile = await this.buildMemberProfile(match.memberId);
       const purchases = await this.recentPurchases(match.memberId);
-      const recommendations = await this.recos.forMember(match.memberId, tod);
+      const recommendations = await this.recos.forMember(match.memberId, tod, orgId);
 
       await this.prisma.visitLog.create({
         data: {
+          orgId,
           memberId: match.memberId,
           matchedFace: true,
           estimatedAge: age,
@@ -146,9 +152,9 @@ export class RecognitionService {
       };
     }
 
-    const recommendations = await this.recos.forGuest(age, gender, tod);
+    const recommendations = await this.recos.forGuest(age, gender, tod, orgId);
     await this.prisma.visitLog.create({
-      data: { matchedFace: false, estimatedAge: age, gender: gender as any, ageBucket: bucket },
+      data: { orgId, matchedFace: false, estimatedAge: age, gender: gender as any, ageBucket: bucket },
     });
 
     const guestTemplate = this.guestScript(age, gender, recommendations[0]?.name);
@@ -175,15 +181,21 @@ export class RecognitionService {
     };
   }
 
-  private async findClosestMember(embedding: number[]) {
+  /** Tenant-critical: the vector search MUST stay inside the org — a match
+   *  across orgs would leak another business's member identity (PDPA).
+   *  Kept non-private so the isolation test can call it directly. */
+  async findClosestMember(embedding: number[], orgId: string) {
     const vecLiteral = `[${embedding.join(',')}]`;
     const rows = await this.prisma.$queryRawUnsafe<{ memberId: string; distance: number }[]>(
-      `SELECT "memberId", 1 - ("embedding" <=> $1::vector) AS similarity,
-              ("embedding" <=> $1::vector) AS distance
-         FROM "FaceEmbedding"
-       ORDER BY "embedding" <=> $1::vector
+      `SELECT f."memberId", 1 - (f."embedding" <=> $1::vector) AS similarity,
+              (f."embedding" <=> $1::vector) AS distance
+         FROM "FaceEmbedding" f
+         JOIN "Member" m ON m."id" = f."memberId"
+        WHERE m."orgId" = $2
+       ORDER BY f."embedding" <=> $1::vector
        LIMIT 1`,
       vecLiteral,
+      orgId,
     );
     const row = rows[0] as any;
     if (!row) return null;

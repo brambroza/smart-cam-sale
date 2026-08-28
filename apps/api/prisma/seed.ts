@@ -9,8 +9,22 @@ function randVector(seed: number): number[] {
   return v.map((x) => x / norm);
 }
 
+const ORG_ID = 'org_default';
+
 async function main() {
   console.log('🌱 Seeding database…');
+
+  // the default org normally exists from migration 05; create it for fresh local DBs
+  await prisma.organization.upsert({
+    where: { id: ORG_ID },
+    update: {},
+    create: {
+      id: ORG_ID,
+      name: 'ร้านหลัก',
+      slug: 'default',
+      bridgeToken: `brg_seed_${Math.random().toString(36).slice(2)}`,
+    },
+  });
 
   await prisma.purchaseItem.deleteMany();
   await prisma.purchase.deleteMany();
@@ -19,7 +33,7 @@ async function main() {
   await prisma.product.deleteMany();
 
   const products = await prisma.product.createManyAndReturn({
-    data: PRODUCTS,
+    data: PRODUCTS.map((p) => ({ ...p, orgId: ORG_ID })),
   });
 
   const members = [
@@ -31,7 +45,7 @@ async function main() {
 
   const memberIds: string[] = [];
   for (let i = 0; i < members.length; i++) {
-    const m = await prisma.member.create({ data: members[i]! });
+    const m = await prisma.member.create({ data: { ...members[i]!, orgId: ORG_ID } });
     memberIds.push(m.id);
     const vec = randVector(i + 1);
     await prisma.$executeRawUnsafe(
@@ -54,6 +68,7 @@ async function main() {
       const total = picks.reduce((s, x) => s + x.price, 0);
       await prisma.purchase.create({
         data: {
+          orgId: ORG_ID,
           memberId,
           total,
           boughtAt,
