@@ -28,12 +28,45 @@ enum Gender {
 // Tenant root. Every business object below carries orgId — data never crosses
 // organizations. bridgeToken authenticates that org's camera bridges.
 model Organization {
-  id          String   @id @default(cuid())
-  name        String
-  slug        String   @unique
-  plan        String   @default("pilot") // pilot | standard | suspended
-  bridgeToken String   @unique
-  createdAt   DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  plan          String   @default("pilot") // pilot | standard | suspended
+  bridgeToken   String   @unique
+  pricePerStore Float    @default(2500) // THB/สาขา/เดือน — ต่อรองรายลูกค้าได้
+  createdAt     DateTime @default(now())
+}
+
+// Billing: one invoice per org per month (regenerate only after voiding).
+model Invoice {
+  id       String    @id @default(cuid())
+  orgId    String
+  number   String    @unique // INV-YYYYMM-XXXX
+  period   String // "2026-08"
+  amount   Float
+  currency String    @default("THB")
+  status   String    @default("draft") // draft | sent | paid | void
+  note     String?
+  dueDate  DateTime?
+  issuedAt DateTime  @default(now())
+  paidAt   DateTime?
+
+  @@index([orgId, period])
+  @@index([status])
+}
+
+// Lead from the public landing-page signup form — superadmin works the queue.
+model SignupRequest {
+  id        String   @id @default(cuid())
+  name      String
+  storeName String
+  phone     String
+  email     String?
+  message   String?
+  status    String   @default("new") // new | contacted | converted | rejected
+  createdAt DateTime @default(now())
+
+  @@index([status, createdAt])
 }
 
 // Physical branch of an organization. Purchase.storeCode / PosApiKey.storeCode

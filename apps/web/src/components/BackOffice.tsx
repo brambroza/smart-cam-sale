@@ -22,11 +22,13 @@ import {
   RefreshCw,
   Ban,
   Play,
+  Receipt,
+  Inbox,
 } from 'lucide-react';
 import { apiJson, postJson, API_BASE, getUser } from '../lib/api';
 import { formatThb, cn } from '../lib/utils';
 
-type Tab = 'overview' | 'products' | 'members' | 'staff' | 'stores' | 'pos' | 'orgs';
+type Tab = 'overview' | 'products' | 'members' | 'staff' | 'stores' | 'pos' | 'billing' | 'orgs';
 
 const TABS: { key: Tab; label: string; icon: typeof Package; superadminOnly?: boolean }[] = [
   { key: 'overview', label: 'ภาพรวมขาย', icon: LayoutDashboard },
@@ -35,6 +37,7 @@ const TABS: { key: Tab; label: string; icon: typeof Package; superadminOnly?: bo
   { key: 'staff', label: 'พนักงาน', icon: UserCog },
   { key: 'stores', label: 'สาขา', icon: Store },
   { key: 'pos', label: 'เชื่อม POS', icon: Plug },
+  { key: 'billing', label: 'การเงิน', icon: Receipt },
   { key: 'orgs', label: 'องค์กร', icon: Building2, superadminOnly: true },
 ];
 
@@ -93,6 +96,7 @@ export function BackOffice({ open, onClose }: { open: boolean; onClose: () => vo
               {tab === 'staff' && <StaffTab />}
               {tab === 'stores' && <StoresTab />}
               {tab === 'pos' && <PosTab />}
+              {tab === 'billing' && <BillingTab superadmin={isSuperadmin} />}
               {tab === 'orgs' && <OrgsTab />}
             </div>
           </motion.div>
@@ -1280,6 +1284,239 @@ function OrgsTab() {
               </button>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────── billing ───────────────────────────
+
+interface Usage {
+  orgName: string;
+  period: string;
+  stores: number;
+  billableStores: number;
+  pricePerStore: number;
+  estimatedAmount: number;
+  members: number;
+  newMembers: number;
+  visits: number;
+  purchases: number;
+  salesTotal: number;
+}
+
+interface InvoiceRow {
+  id: string;
+  number: string;
+  period: string;
+  amount: number;
+  status: string;
+  note: string | null;
+  dueDate: string | null;
+  issuedAt: string;
+  paidAt: string | null;
+  org?: { name: string; slug: string } | null;
+}
+
+interface LeadRow {
+  id: string;
+  name: string;
+  storeName: string;
+  phone: string;
+  email: string | null;
+  message: string | null;
+  status: string;
+  createdAt: string;
+}
+
+const INV_STATUS: Record<string, string> = {
+  draft: 'text-slate-400 border-white/15',
+  sent: 'text-amber-300 border-amber-400/40 bg-amber-500/10',
+  paid: 'text-emerald-300 border-emerald-400/40 bg-emerald-500/10',
+  void: 'text-rose-300 border-rose-400/30 opacity-60',
+};
+
+function BillingTab({ superadmin }: { superadmin: boolean }) {
+  const [usage, setUsage] = useState<Usage | null>(null);
+  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
+  const [leads, setLeads] = useState<LeadRow[]>([]);
+  const [orgs, setOrgs] = useState<OrgRow[]>([]);
+  const [genOrg, setGenOrg] = useState('');
+  const [genPeriod, setGenPeriod] = useState(new Date().toISOString().slice(0, 7));
+  const [genAmount, setGenAmount] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = () => {
+    apiJson<Usage>('/billing/usage').then(setUsage).catch(() => {});
+    if (superadmin) {
+      apiJson<InvoiceRow[]>('/admin/billing/invoices').then(setInvoices).catch((e) => setErr((e as Error).message));
+      apiJson<LeadRow[]>('/admin/signups').then(setLeads).catch(() => {});
+      apiJson<OrgRow[]>('/admin/orgs').then(setOrgs).catch(() => {});
+    } else {
+      apiJson<InvoiceRow[]>('/billing/invoices').then(setInvoices).catch((e) => setErr((e as Error).message));
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const generate = async () => {
+    if (!genOrg) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await postJson('/admin/billing/invoices', {
+        orgId: genOrg,
+        period: genPeriod,
+        amount: genAmount ? Number(genAmount) : undefined,
+      });
+      setGenAmount('');
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setInvStatus = async (inv: InvoiceRow, status: string) => {
+    try {
+      await postJson(`/admin/billing/invoices/${inv.id}/status`, { status });
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  const setLeadStatus = async (lead: LeadRow, status: string) => {
+    try {
+      await postJson(`/admin/signups/${lead.id}/status`, { status });
+      refresh();
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <ErrBanner msg={err} />
+
+      {usage && (
+        <div>
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">
+            การใช้งานเดือนนี้ ({usage.period})
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <StatCard label={`ค่าบริการโดยประมาณ (${usage.billableStores} สาขา × ${formatThb(usage.pricePerStore)})`} value={formatThb(usage.estimatedAmount)} />
+            <StatCard label="ลูกค้าเดินเข้าร้าน (visits)" value={usage.visits.toLocaleString()} />
+            <StatCard label={`สมาชิก (ใหม่ +${usage.newMembers})`} value={usage.members.toLocaleString()} />
+            <StatCard label={`ยอดขายผ่านระบบ (${usage.purchases} บิล)`} value={formatThb(usage.salesTotal)} />
+          </div>
+        </div>
+      )}
+
+      {superadmin && (
+        <div className="glass p-4 border-neon-cyan/20">
+          <h3 className="text-sm font-semibold text-slate-100 mb-3">ออกใบแจ้งหนี้</h3>
+          <div className="grid md:grid-cols-4 gap-3 items-end">
+            <label className="block">
+              <span className="text-[11px] text-slate-400 uppercase tracking-wide">องค์กร *</span>
+              <select
+                value={genOrg}
+                onChange={(e) => setGenOrg(e.target.value)}
+                className="mt-1 w-full bg-white/[0.04] border border-white/10 rounded-xl px-3 py-2 text-sm text-slate-100 focus:border-neon-cyan/50 focus:outline-none"
+              >
+                <option value="" className="bg-ink-900">— เลือกองค์กร —</option>
+                {orgs.map((o) => (
+                  <option key={o.id} value={o.id} className="bg-ink-900">{o.name}</option>
+                ))}
+              </select>
+            </label>
+            <Input label="งวด (YYYY-MM)" value={genPeriod} onChange={setGenPeriod} />
+            <Input label="ยอดกำหนดเอง (เว้น = คิดตามสาขา)" value={genAmount} onChange={setGenAmount} type="number" />
+            <button onClick={generate} disabled={busy || !genOrg} className="btn-primary py-2 px-4 text-sm disabled:opacity-40">
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Receipt className="w-4 h-4" />}
+              ออกใบแจ้งหนี้
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="glass p-4">
+        <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">
+          ใบแจ้งหนี้{superadmin ? 'ทั้งหมด' : 'ของร้าน'}
+        </h3>
+        {invoices.length === 0 && <div className="text-sm text-slate-500 py-4 text-center">ยังไม่มีใบแจ้งหนี้</div>}
+        <div className="space-y-1.5">
+          {invoices.map((inv) => (
+            <div key={inv.id} className="flex items-center gap-3 text-sm py-1.5 border-b border-white/5 last:border-0">
+              <span className="font-mono text-[12px] text-slate-300 w-36 shrink-0">{inv.number}</span>
+              {superadmin && <span className="text-slate-300 w-32 truncate shrink-0">{inv.org?.name ?? inv.id}</span>}
+              <span className="font-mono text-[11px] text-slate-500 w-16 shrink-0">{inv.period}</span>
+              <span className="flex-1 text-[11px] text-slate-500 truncate">{inv.note ?? ''}</span>
+              <span className="font-mono text-neon-cyan w-24 text-right shrink-0">{formatThb(inv.amount)}</span>
+              <span className={cn('text-[10px] px-2 py-0.5 rounded-full border w-14 text-center shrink-0', INV_STATUS[inv.status] ?? '')}>
+                {inv.status}
+              </span>
+              {superadmin && inv.status !== 'void' && (
+                <span className="flex gap-1 shrink-0">
+                  {inv.status === 'draft' && (
+                    <button onClick={() => setInvStatus(inv, 'sent')} className="text-[10px] px-2 py-0.5 rounded border border-amber-400/40 text-amber-300 hover:bg-amber-500/10">ส่งแล้ว</button>
+                  )}
+                  {inv.status !== 'paid' && (
+                    <button onClick={() => setInvStatus(inv, 'paid')} className="text-[10px] px-2 py-0.5 rounded border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/10">รับเงิน</button>
+                  )}
+                  <button onClick={() => setInvStatus(inv, 'void')} className="text-[10px] px-2 py-0.5 rounded border border-rose-400/30 text-rose-300 hover:bg-rose-500/10">void</button>
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {superadmin && (
+        <div className="glass p-4">
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+            <Inbox className="w-3.5 h-3.5" /> คำขอเปิดใช้งานจากหน้าเว็บ ({leads.filter((l) => l.status === 'new').length} ใหม่)
+          </h3>
+          {leads.length === 0 && <div className="text-sm text-slate-500 py-4 text-center">ยังไม่มีคำขอ</div>}
+          <div className="space-y-1.5">
+            {leads.map((l) => (
+              <div key={l.id} className="flex items-start gap-3 text-sm py-2 border-b border-white/5 last:border-0">
+                <div className="flex-1 min-w-0">
+                  <div className="text-slate-100">
+                    {l.storeName} <span className="text-slate-400">— {l.name}</span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 font-mono">
+                    {l.phone}{l.email ? ` · ${l.email}` : ''} · {new Date(l.createdAt).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                  {l.message && <div className="text-[12px] text-slate-400 mt-0.5 truncate">{l.message}</div>}
+                </div>
+                <span className={cn(
+                  'text-[10px] px-2 py-0.5 rounded-full border shrink-0',
+                  l.status === 'new' ? 'text-neon-cyan border-cyan-400/40 bg-cyan-500/10'
+                    : l.status === 'converted' ? 'text-emerald-300 border-emerald-400/40'
+                    : l.status === 'rejected' ? 'text-rose-300 border-rose-400/30 opacity-60'
+                    : 'text-amber-300 border-amber-400/40',
+                )}>
+                  {l.status}
+                </span>
+                {l.status !== 'converted' && l.status !== 'rejected' && (
+                  <span className="flex gap-1 shrink-0">
+                    {l.status === 'new' && (
+                      <button onClick={() => setLeadStatus(l, 'contacted')} className="text-[10px] px-2 py-0.5 rounded border border-amber-400/40 text-amber-300 hover:bg-amber-500/10">ติดต่อแล้ว</button>
+                    )}
+                    <button onClick={() => setLeadStatus(l, 'converted')} className="text-[10px] px-2 py-0.5 rounded border border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/10">ปิดดีล</button>
+                    <button onClick={() => setLeadStatus(l, 'rejected')} className="text-[10px] px-2 py-0.5 rounded border border-rose-400/30 text-rose-300 hover:bg-rose-500/10">ไม่สนใจ</button>
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
