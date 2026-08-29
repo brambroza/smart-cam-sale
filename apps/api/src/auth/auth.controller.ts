@@ -1,17 +1,29 @@
 import { Body, Controller, Delete, Get, Param, Post, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { OrgsService } from '../orgs/orgs.service';
 import { Public } from './public.decorator';
 import { AdminOnly } from './admin.decorator';
 import type { JwtPayload } from './auth.service';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly svc: AuthService) {}
+  constructor(
+    private readonly svc: AuthService,
+    private readonly orgs: OrgsService,
+  ) {}
 
   @Public()
   @Post('login')
   login(@Body() body: { username: string; password: string }) {
     return this.svc.login(body.username, body.password);
+  }
+
+  /** Self-serve shop signup (Lite tier) — responds like login so the app enters immediately. */
+  @Public()
+  @Post('register')
+  async register(@Body() body: { shopName: string; email: string; password: string }) {
+    await this.orgs.selfServeSignup(body);
+    return this.svc.login(body.email?.trim().toLowerCase() ?? '', body.password);
   }
 
   @Post('change-password')

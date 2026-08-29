@@ -26,9 +26,7 @@ export class EmailService {
 
   /** Fire-and-forget: callers must never await-and-throw on this. */
   async sendLeadAlert(lead: LeadAlert): Promise<void> {
-    if (!this.apiKey) return;
-    const esc = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const esc = escapeHtml;
     const html =
       `<h2>🔔 ผู้สนใจใหม่จากหน้าเว็บ</h2>` +
       `<p><b>ชื่อ:</b> ${esc(lead.name)}<br/>` +
@@ -37,6 +35,22 @@ export class EmailService {
       (lead.email ? `<br/><b>อีเมล:</b> ${esc(lead.email)}` : '') +
       (lead.message ? `</p><p><b>ข้อความ:</b><br/>${esc(lead.message)}` : '') +
       `</p><p style="color:#888">เปิดดู/อัปเดตสถานะได้ในหลังบ้าน → แท็บ การเงิน → คิวผู้สนใจ</p>`;
+    await this.send(`🔔 Lead ใหม่: ${lead.storeName} (${lead.name})`, html);
+  }
+
+  /** New self-serve shop registered — the owner should know within seconds. */
+  async sendSignupAlert(info: { shopName: string; email: string }): Promise<void> {
+    const esc = escapeHtml;
+    const html =
+      `<h2>🎉 ร้านใหม่สมัครใช้งานเอง (Lite)</h2>` +
+      `<p><b>ร้าน:</b> ${esc(info.shopName)}<br/>` +
+      `<b>อีเมล:</b> ${esc(info.email)}</p>` +
+      `<p style="color:#888">ทักไปต้อนรับ/ช่วย onboarding ได้เลย — ดูรายชื่อองค์กรในหลังบ้าน → แท็บ องค์กร</p>`;
+    await this.send(`🎉 ร้านใหม่สมัครเอง: ${info.shopName}`, html);
+  }
+
+  private async send(subject: string, html: string): Promise<void> {
+    if (!this.apiKey) return;
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -44,18 +58,17 @@ export class EmailService {
           Authorization: `Bearer ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          from: this.from,
-          to: [this.to],
-          subject: `🔔 Lead ใหม่: ${lead.storeName} (${lead.name})`,
-          html,
-        }),
+        body: JSON.stringify({ from: this.from, to: [this.to], subject, html }),
       });
       if (!res.ok) {
-        this.logger.warn(`lead email failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
+        this.logger.warn(`email failed: HTTP ${res.status} ${await res.text().catch(() => '')}`);
       }
     } catch (e) {
-      this.logger.warn(`lead email failed: ${(e as Error).message}`);
+      this.logger.warn(`email failed: ${(e as Error).message}`);
     }
   }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

@@ -77,6 +77,22 @@ export function postJson<T>(path: string, data: unknown, method = 'POST'): Promi
   });
 }
 
+/** Self-serve shop signup — server responds like login, so we enter immediately. */
+export async function register(shopName: string, email: string, password: string) {
+  const res = await fetch(`${API_BASE}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shopName, email, password }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(body?.message ?? `สมัครไม่สำเร็จ (HTTP ${res.status})`);
+  }
+  const data = (await res.json()) as { accessToken: string; user: AuthUser };
+  setAuth(data.accessToken, data.user);
+  return data.user;
+}
+
 export async function login(username: string, password: string) {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',

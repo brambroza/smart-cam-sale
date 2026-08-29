@@ -161,3 +161,69 @@ describe('OrgsService PromptPay settings', () => {
     });
   });
 });
+
+describe('OrgsService.selfServeSignup — email-based Lite signup', () => {
+  const VALID = { shopName: 'ร้านกาแฟบ้านสวน', email: 'Owner@Example.com', password: 'long-enough' };
+
+  function signupPrisma() {
+    const prisma = prismaMock();
+    (prisma.organization as any).count = jest.fn().mockResolvedValue(0);
+    return prisma;
+  }
+
+  it('creates a Lite org (camera off, ฿590) + an email-login admin, and alerts the owner', async () => {
+    const prisma = signupPrisma();
+    const email = { sendSignupAlert: jest.fn().mockResolvedValue(undefined) };
+    const svc = new OrgsService(prisma, email as never);
+    await expect(svc.selfServeSignup(VALID)).resolves.toMatchObject({ ok: true, orgId: 'org_new' });
+    expect(prisma.organization.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'ร้านกาแฟบ้านสวน',
+          cameraEnabled: false,
+          pricePerStore: 590,
+        }),
+      }),
+    );
+    expect(prisma.staffUser.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          username: 'owner@example.com', // email, lowercased — doubles as the login name
+          role: 'admin',
+          orgId: 'org_new',
+        }),
+      }),
+    );
+    expect(email.sendSignupAlert).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'owner@example.com' }),
+    );
+  });
+
+  it('rejects a taken email, bad email formats, and short passwords', async () => {
+    const prisma = signupPrisma();
+    (prisma.staffUser.findUnique as jest.Mock).mockResolvedValue({ id: 'u-existing' });
+    await expect(new OrgsService(prisma).selfServeSignup(VALID)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+
+    const svc = new OrgsService(signupPrisma());
+    await expect(svc.selfServeSignup({ ...VALID, email: 'not-an-email' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(svc.selfServeSignup({ ...VALID, password: 'short' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(svc.selfServeSignup({ ...VALID, shopName: 'x' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('ABUSE GUARD: refuses when too many orgs were created in the last 24h', async () => {
+    const prisma = signupPrisma();
+    ((prisma.organization as any).count as jest.Mock).mockResolvedValue(50);
+    await expect(new OrgsService(prisma).selfServeSignup(VALID)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(prisma.organization.create).not.toHaveBeenCalled();
+  });
+});

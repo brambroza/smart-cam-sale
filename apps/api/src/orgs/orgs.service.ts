@@ -10,12 +10,17 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma.service';
 import { DEFAULT_ORG_ID } from '../auth/auth.service';
 import { normalizePromptPayId } from '../common/promptpay.util';
+import { EmailService } from '../notify/email.service';
 
 @Injectable()
 export class OrgsService implements OnModuleInit {
   private readonly logger = new Logger(OrgsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // optional so unit tests can construct without it
+    private readonly email?: EmailService,
+  ) {}
 
   /**
    * Startup adoption: existing deployments authenticated bridges with the
@@ -128,6 +133,68 @@ export class OrgsService implements OnModuleInit {
       bridgeToken,
       adminUsername: username,
     };
+  }
+
+  /**
+   * Self-serve signup from the login page: a small shop registers with email
+   * + password and gets its own Lite org instantly (no camera, no install —
+   * upgrading to the camera tier goes through us). The email doubles as the
+   * login username, so the regular login endpoint just works.
+   */
+  async selfServeSignup(input: { shopName: string; email: string; password: string }) {
+    const shopName = input.shopName?.trim() ?? '';
+    const email = input.email?.trim().toLowerCase() ?? '';
+    if (shopName.length < 2 || shopName.length > 100) {
+      throw new BadRequestException('กรุณากรอกชื่อร้าน (2-100 ตัวอักษร)');
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) || email.length > 150) {
+      throw new BadRequestException('อีเมลไม่ถูกต้อง');
+    }
+    if (!input.password || input.password.length < 8) {
+      throw new BadRequestException('รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร');
+    }
+    if (await this.prisma.staffUser.findUnique({ where: { username: email } })) {
+      throw new BadRequestException('อีเมลนี้มีบัญชีอยู่แล้ว — เข้าสู่ระบบได้เลย');
+    }
+    // abuse guard: an unauthenticated endpoint that creates orgs needs a ceiling
+    const since = new Date(Date.now() - 86400000);
+    const createdToday = await this.prisma.organization.count({
+      where: { createdAt: { gte: since } },
+    });
+    if (createdToday >= 50) {
+      throw new BadRequestException(
+        'มีผู้สมัครจำนวนมากผิดปกติ — ลองใหม่ภายหลัง หรือติดต่อ 085-608-3298',
+      );
+    }
+
+    const base =
+      shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 20) ||
+      'shop';
+    let slug = `${base}-${randomBytes(2).toString('hex')}`;
+    while (await this.prisma.organization.findUnique({ where: { slug } })) {
+      slug = `${base}-${randomBytes(2).toString('hex')}`;
+    }
+
+    const org = await this.prisma.organization.create({
+      data: {
+        name: shopName,
+        slug,
+        cameraEnabled: false, // Lite tier
+        pricePerStore: 590,
+        bridgeToken: `brg_${randomBytes(24).toString('hex')}`,
+      },
+    });
+    await this.prisma.staffUser.create({
+      data: {
+        username: email,
+        passwordHash: await bcrypt.hash(input.password, 10),
+        displayName: `แอดมิน ${shopName}`,
+        role: 'admin',
+        orgId: org.id,
+      },
+    });
+    this.email?.sendSignupAlert({ shopName, email }).catch(() => {});
+    return { ok: true, orgId: org.id };
   }
 
   /** Tier switch: Lite (false) refuses camera frames and bridge connections. */
